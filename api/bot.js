@@ -119,7 +119,17 @@ async function processFileUpload(token, ghToken, hfToken, chatId, messageIdToEdi
     const base64Readme = Buffer.from(readmeContent, 'utf8').toString('base64');
     await githubPutFile(ghToken, 'README.md', base64Readme, `docs: добавлен/обновлен трек ${trackId}`, readmeSha);
     
-    await tgEditMessage(token, chatId, messageIdToEdit, `🎉 Успешно! Файл (HF) привязан к треку ${trackId} в базе данных.\nДобавлено как: ${metadataString}`);
+    // Авто-очистка трека из списка репортов
+    try {
+        const { data: reports, sha: reportsSha } = await fetchJsonFile(ghToken, 'reports.json', []);
+        if (reports.includes(trackId)) {
+            const newReports = reports.filter(id => id !== trackId);
+            const b64Reports = Buffer.from(JSON.stringify(newReports, null, 2)).toString('base64');
+            await githubPutFile(ghToken, 'reports.json', b64Reports, `chore: удален ${trackId} из репортов после успешной загрузки`, reportsSha);
+        }
+    } catch(e) { console.error("Не удалось очистить репорт:", e) }
+
+    await tgEditMessage(token, chatId, messageIdToEdit, `🎉 Успешно! Файл привязан к треку ${trackId} в базе данных.\nДобавлено как: ${metadataString}`);
   } catch (err) {
     console.error(err);
     await tgEditMessage(token, chatId, messageIdToEdit, '❌ Ошибка: ' + err.message);
@@ -142,7 +152,7 @@ module.exports = async (req, res) => {
 
     // 1. Прием репортов из мода (без авторизации)
     if (body.type === 'report' && body.track_id) {
-      const trackId = body.track_id;
+      const trackId = body.track_id.toString();
       const { data: listData } = await fetchJsonFile(ghToken, 'list.json', { tracks: {} });
       if (listData.tracks && listData.tracks[trackId]) {
          return res.status(200).send({ status: 'already_exists' });
@@ -154,11 +164,17 @@ module.exports = async (req, res) => {
          const b64 = Buffer.from(JSON.stringify(reports, null, 2)).toString('base64');
          await githubPutFile(ghToken, 'reports.json', b64, `report: жалоба на цензуру трека ${trackId}`, reportsSha);
          
-         // Отправляем уведомление всем админам
+         // Отправляем уведомление с КНОПКОЙ ДОБАВЛЕНИЯ
          if (process.env.ADMIN_IDS) {
             const admins = process.env.ADMIN_IDS.split(',').map(id => id.trim());
             for (const adminId of admins) {
-               try { await tgSend(token, adminId, `🚨 Новый репорт от пользователя!\nТрек зацензурен: https://music.yandex.ru/track/${trackId}`); } catch(e){}
+               try { 
+                 await tgSend(token, adminId, `🚨 Новый репорт от пользователя!\nТрек зацензурен: https://music.yandex.ru/track/${trackId}`, {
+                    reply_markup: {
+                        inline_keyboard: [[{ text: '➕ Добавить трек', callback_data: `ADD_TRACK_${trackId}` }]]
+                    }
+                 });
+               } catch(e){}
             }
          }
       }
@@ -171,7 +187,12 @@ module.exports = async (req, res) => {
       if (!isAuthorized(query.from.id)) return res.status(200).send('OK');
       const data = query.data;
 
-      if (data === 'MENU_LIST') {
+      if (data.startsWith('ADD_TRACK_')) {
+         const trackId = data.replace('ADD_TRACK_', '');
+         await tgAnswerCallbackQuery(token, query.id, 'Жду файл...');
+         await tgSend(token, chatId, `✅ Заявка на Track ID: ${trackId}\nТеперь отправь мне MP3 файл, ответив на ЭТО сообщение.`, { reply_markup: { force_reply: true } });
+      }
+      else if (data === 'MENU_LIST') {
          await tgAnswerCallbackQuery(token, query.id, 'Получаю список...');
          const { data: listData } = await fetchJsonFile(ghToken, 'list.json', { tracks: {} });
          const count = Object.keys(listData.tracks || {}).length;
@@ -272,7 +293,7 @@ module.exports = async (req, res) => {
             return res.status(200).send('OK');
          }
 
-         // Обработка получения MP3 файла (Добавление / Замена)
+         // Обработка получения MP3 файла (Добавление / Замена / Репорт)
          if (msg.audio || msg.document) {
             if (replyText.includes('Track ID:')) {
                const isReplace = replyText.includes('ЗАМЕНА');

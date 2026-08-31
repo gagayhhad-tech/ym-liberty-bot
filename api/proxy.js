@@ -16,7 +16,8 @@ export default async function handler(req, res) {
             const listRes = await fetch(listUrl);
             if (listRes.ok) {
                 debugInfo.listOk = true;
-                const list = await listRes.json();
+                const json = await listRes.json();
+                const list = json.tracks || json; // fallback in case structure changes
                 
                 if (list[trackId]) {
                     debugInfo.hasTrack = true;

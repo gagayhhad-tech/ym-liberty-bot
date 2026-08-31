@@ -192,33 +192,6 @@ module.exports = async (req, res) => {
          await tgAnswerCallbackQuery(token, query.id, 'Жду файл...');
          await tgSend(token, chatId, `✅ Заявка на Track ID: ${trackId}\nТеперь отправь мне MP3 файл, ответив на ЭТО сообщение.`, { reply_markup: { force_reply: true } });
       }
-      else if (data === 'MENU_LIST') {
-         await tgAnswerCallbackQuery(token, query.id, 'Получаю список...');
-         const { data: listData } = await fetchJsonFile(ghToken, 'list.json', { tracks: {} });
-         const count = Object.keys(listData.tracks || {}).length;
-         await tgSend(token, chatId, `📚 В базе сейчас **${count}** треков.\n\nПосмотреть полный список с названиями можно тут:\nhttps://github.com/${GITHUB_REPO}#readme`, { parse_mode: 'Markdown' });
-      }
-      else if (data === 'MENU_DELETE') {
-         await tgAnswerCallbackQuery(token, query.id, 'Ожидаю ID...');
-         await tgSend(token, chatId, '🗑 Ответь на это сообщение ссылкой на трек или его ID, чтобы УДАЛИТЬ его из базы.', { reply_markup: { force_reply: true } });
-      }
-      else if (data === 'MENU_REPLACE') {
-         await tgAnswerCallbackQuery(token, query.id, 'Ожидаю ссылку...');
-         await tgSend(token, chatId, '🔄 Ответь на это сообщение ссылкой на трек, чтобы ЗАМЕНИТЬ его (защита от дубликатов будет проигнорирована).', { reply_markup: { force_reply: true } });
-      }
-      else if (data === 'MENU_REPORTS') {
-         await tgAnswerCallbackQuery(token, query.id, 'Загружаю репорты...');
-         const { data: reports } = await fetchJsonFile(ghToken, 'reports.json', []);
-         if (reports.length === 0) {
-            await tgSend(token, chatId, '✅ Пока нет новых сообщений о цензуре!');
-         } else {
-            const msg = reports.map(id => `- https://music.yandex.ru/track/${id}`).join('\n');
-            await tgSend(token, chatId, `🚨 **Треки, ожидающие загрузки:**\n${msg}\n\nЧтобы очистить список, нажми кнопку ниже.`, { 
-               parse_mode: 'Markdown',
-               reply_markup: { inline_keyboard: [[{ text: '🧹 Очистить репорты', callback_data: 'CLEAR_REPORTS' }]] }
-            });
-         }
-      }
       else if (data === 'CLEAR_REPORTS') {
          await tgAnswerCallbackQuery(token, query.id, 'Очищаю...');
          const { sha } = await fetchJsonFile(ghToken, 'reports.json', []);
@@ -238,17 +211,52 @@ module.exports = async (req, res) => {
       
       if (!isAuthorized(msg.from.id)) return res.status(200).send('OK');
 
+      const MAIN_KEYBOARD = {
+        keyboard: [
+          [{ text: '📚 Существующие треки' }],
+          [{ text: '🗑 Удаление треков' }, { text: '🔄 Замена трека' }],
+          [{ text: '🚨 Сообщения о цензуре' }]
+        ],
+        resize_keyboard: true,
+        is_persistent: true
+      };
+
       if (msg.text && (msg.text === '/start' || msg.text === '/menu')) {
-         await tgSend(token, chatId, '🎛 **Панель управления базой YM Liberty**\nВыберите действие:', {
+         await tgSend(token, chatId, '🎛 **Панель управления базой YM Liberty**\nКнопки меню теперь всегда внизу экрана!', {
             parse_mode: 'Markdown',
-            reply_markup: {
-               inline_keyboard: [
-                  [{ text: '📚 Существующие треки', callback_data: 'MENU_LIST' }],
-                  [{ text: '🗑 Удаление треков', callback_data: 'MENU_DELETE' }, { text: '🔄 Замена трека', callback_data: 'MENU_REPLACE' }],
-                  [{ text: '🚨 Сообщения о цензуре', callback_data: 'MENU_REPORTS' }]
-               ]
-            }
+            reply_markup: MAIN_KEYBOARD
          });
+         return res.status(200).send('OK');
+      }
+
+      // Обработка текстовых кнопок (Reply Keyboard)
+      if (msg.text === '📚 Существующие треки') {
+         const statusMsg = await tgSend(token, chatId, '⏳ Получаю список...');
+         const { data: listData } = await fetchJsonFile(ghToken, 'list.json', { tracks: {} });
+         const count = Object.keys(listData.tracks || {}).length;
+         await tgEditMessage(token, chatId, statusMsg.result.message_id, `📚 В базе сейчас **${count}** треков.\n\nПосмотреть полный список с названиями можно тут:\nhttps://github.com/${GITHUB_REPO}#readme`, { parse_mode: 'Markdown' });
+         return res.status(200).send('OK');
+      }
+      if (msg.text === '🗑 Удаление треков') {
+         await tgSend(token, chatId, '🗑 Ответь на это сообщение ссылкой на трек или его ID, чтобы УДАЛИТЬ его из базы.', { reply_markup: { force_reply: true } });
+         return res.status(200).send('OK');
+      }
+      if (msg.text === '🔄 Замена трека') {
+         await tgSend(token, chatId, '🔄 Ответь на это сообщение ссылкой на трек, чтобы ЗАМЕНИТЬ его (защита от дубликатов будет проигнорирована).', { reply_markup: { force_reply: true } });
+         return res.status(200).send('OK');
+      }
+      if (msg.text === '🚨 Сообщения о цензуре') {
+         const statusMsg = await tgSend(token, chatId, '⏳ Загружаю репорты...');
+         const { data: reports } = await fetchJsonFile(ghToken, 'reports.json', []);
+         if (reports.length === 0) {
+            await tgEditMessage(token, chatId, statusMsg.result.message_id, '✅ Пока нет новых сообщений о цензуре!');
+         } else {
+            const lines = reports.map(id => `- https://music.yandex.ru/track/${id}`).join('\n');
+            await tgEditMessage(token, chatId, statusMsg.result.message_id, `🚨 **Треки, ожидающие загрузки:**\n${lines}\n\nЧтобы очистить список, нажми кнопку ниже.`, { 
+               parse_mode: 'Markdown',
+               reply_markup: { inline_keyboard: [[{ text: '🧹 Очистить репорты', callback_data: 'CLEAR_REPORTS' }]] }
+            });
+         }
          return res.status(200).send('OK');
       }
 

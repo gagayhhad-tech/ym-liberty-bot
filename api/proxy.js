@@ -12,8 +12,8 @@ export default async function handler(req, res) {
 
     if (trackId) {
         try {
-            const baseUrl = `https://${req.headers.host}`;
-            const listRes = await fetch(`${baseUrl}/list.json`);
+            const listUrl = "https://raw.githubusercontent.com/gagayhhad-tech/ym-liberty-db/refs/heads/main/list.json";
+            const listRes = await fetch(listUrl);
             if (listRes.ok) {
                 debugInfo.listOk = true;
                 const list = await listRes.json();
@@ -39,6 +39,8 @@ export default async function handler(req, res) {
                         return res.status(200).send(xml);
                     }
                 }
+            } else {
+                debugInfo.error = "listRes not ok: " + listRes.status;
             }
         } catch (e) {
             debugInfo.error = e.toString();

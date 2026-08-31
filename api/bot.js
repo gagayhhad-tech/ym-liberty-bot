@@ -93,14 +93,12 @@ module.exports = async (req, res) => {
     const ghToken = process.env.GITHUB_TOKEN;
     if (!token) return res.status(200).send('No token');
     
-    // Auth check helper
     const isAuthorized = (userId) => {
       if (!process.env.ADMIN_IDS) return true;
       const allowedAdmins = process.env.ADMIN_IDS.split(',').map(id => id.trim());
       return allowedAdmins.includes(userId.toString());
     };
 
-    // HANDLE CALLBACK QUERIES
     if (body.callback_query) {
       const query = body.callback_query;
       const chatId = query.message.chat.id;
@@ -111,7 +109,6 @@ module.exports = async (req, res) => {
         const trackId = data.replace('CONFIRM_TRACK_', '');
         await tgAnswerCallbackQuery(token, query.id, 'Начинаю загрузку...');
         
-        // Find fileId from the original message that the bot replied to
         const origMsg = query.message.reply_to_message;
         if (!origMsg || (!origMsg.audio && !origMsg.document)) {
           await tgEditMessage(token, chatId, query.message.message_id, '❌ Ошибка: не найден оригинальный файл.');
@@ -119,9 +116,6 @@ module.exports = async (req, res) => {
         }
         
         const fileId = origMsg.audio ? origMsg.audio.file_id : origMsg.document.file_id;
-        
-        // Start background upload process (Vercel allows async execution after returning if configured, 
-        // but for safety we await it, note Vercel limits execution time to 10s or 60s)
         await processFileUpload(token, ghToken, chatId, query.message.message_id, trackId, fileId);
       } 
       else if (data === 'CANCEL') {
@@ -131,7 +125,6 @@ module.exports = async (req, res) => {
       return res.status(200).send('OK');
     }
     
-    // HANDLE MESSAGES
     if (body.message) {
       const msg = body.message;
       const chatId = msg.chat.id;
@@ -145,7 +138,6 @@ module.exports = async (req, res) => {
         const trackMatch = msg.text.match(/track\/(\d+)/);
         if (trackMatch) {
           const trackId = trackMatch[1];
-          // Check DB first
           const { listData } = await fetchListJson(ghToken);
           if (listData[trackId]) {
             await tgSend(token, chatId, `⚠️ Этот трек (ID: ${trackId}) уже есть в базе!`);
@@ -155,12 +147,10 @@ module.exports = async (req, res) => {
         }
       } 
       else if (msg.audio || msg.document) {
-        // Did they reply to a track ID message?
         if (msg.reply_to_message && msg.reply_to_message.text && msg.reply_to_message.text.includes('Track ID:')) {
           const trackIdMatch = msg.reply_to_message.text.match(/Track ID: (\d+)/);
           if (trackIdMatch) {
             const trackId = trackIdMatch[1];
-            // Check DB
             const { listData } = await fetchListJson(ghToken);
             if (listData[trackId]) {
               await tgSend(token, chatId, `⚠️ Этот трек (ID: ${trackId}) уже есть в базе!`);
@@ -173,13 +163,11 @@ module.exports = async (req, res) => {
           }
         } 
         else {
-          // Direct MP3 upload without reply -> Try to read ID3 tags
           await tgSend(token, chatId, `⏳ Читаю ID3-теги файла...`);
           try {
             const fileId = msg.audio ? msg.audio.file_id : msg.document.file_id;
             const fileLink = await tgGetFileLink(token, fileId);
             
-            // Download file partially or fully to read tags
             const fileResponse = await axios.get(fileLink, { responseType: 'arraybuffer' });
             const tags = NodeID3.read(fileResponse.data);
             
@@ -189,7 +177,13 @@ module.exports = async (req, res) => {
             }
             
             const searchQuery = `${tags.artist || ''} ${tags.title}`.trim();
-            const yandexRes = await axios.get(`https://api.music.yandex.net/search?text=${encodeURIComponent(searchQuery)}&type=track`);
+            const yandexRes = await axios.get(`https://api.music.yandex.net/search?text=${encodeURIComponent(searchQuery)}&type=track&page=0`, {
+              headers: {
+                'X-Forwarded-For': '178.176.10.10',
+                'X-Real-IP': '178.176.10.10',
+                'User-Agent': 'YandexMusicAndroid/5.36.2 (Android 13)'
+              }
+            });
             const tracks = yandexRes.data.result?.tracks?.results;
             
             if (!tracks || tracks.length === 0) {
@@ -202,7 +196,6 @@ module.exports = async (req, res) => {
             const trackTitle = bestMatch.title;
             const trackArtist = bestMatch.artists.map(a => a.name).join(', ');
             
-            // Check DB
             const { listData } = await fetchListJson(ghToken);
             if (listData[trackId]) {
               await tgSend(token, chatId, `⚠️ Трек 🎵 ${trackArtist} - ${trackTitle} (ID: ${trackId}) уже есть в нашей базе!`);
@@ -222,7 +215,7 @@ module.exports = async (req, res) => {
             
           } catch (e) {
              console.error(e);
-             await tgSend(token, chatId, '❌ Ошибка при обработке аудио: ' + e.message);
+             await tgSend(token, chatId, '❌ Ошибка при обработке аудио (скорее всего трек недоступен в Яндексе или Vercel заблокирован). Скиньте ссылку вручную!');
           }
         }
       }

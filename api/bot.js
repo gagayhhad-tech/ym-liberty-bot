@@ -13,9 +13,13 @@ module.exports = async (req, res) => {
       const msg = body.message;
       const chatId = msg.chat.id;
       
-      if (process.env.ADMIN_ID && msg.from.id.toString() !== process.env.ADMIN_ID) {
-        await bot.sendMessage(chatId, 'Извини, бот приватный.');
-        return res.status(200).send('OK');
+      // Поддержка нескольких админов через запятую
+      if (process.env.ADMIN_IDS) {
+        const allowedAdmins = process.env.ADMIN_IDS.split(',').map(id => id.trim());
+        if (!allowedAdmins.includes(msg.from.id.toString())) {
+          await bot.sendMessage(chatId, 'Извини, бот приватный и работает только для администраторов.');
+          return res.status(200).send('OK');
+        }
       }
 
       if (msg.text && msg.text.includes('music.yandex.ru')) {

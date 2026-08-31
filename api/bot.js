@@ -1,8 +1,10 @@
 ﻿const axios = require('axios');
 const NodeID3 = require('node-id3');
+const { commit } = require('@huggingface/hub');
 
 const GITHUB_REPO = 'gagayhhad-tech/ym-liberty-db';
 const GITHUB_BRANCH = 'main';
+const HF_DATASET = 'naloz/YMliberty';
 
 async function tgSend(token, chatId, text, options = {}) {
   const payload = { chat_id: chatId, text: text, ...options };
@@ -60,7 +62,6 @@ async function fetchListJson(ghToken) {
       if (parsed.tracks) {
         listData = parsed;
       } else {
-        // Migrate old flat structure
         listData.tracks = parsed;
       }
     }
@@ -68,13 +69,12 @@ async function fetchListJson(ghToken) {
   return { listData, listSha };
 }
 
-async function processFileUpload(token, ghToken, chatId, messageIdToEdit, trackId, fileId, metadataString = null) {
+async function processFileUpload(token, ghToken, hfToken, chatId, messageIdToEdit, trackId, fileId, metadataString = null) {
   try {
     await tgEditMessage(token, chatId, messageIdToEdit, `⏳ Скачиваю файл для трека ${trackId} из Telegram...`);
     const fileLink = await tgGetFileLink(token, fileId);
     const fileResponse = await axios.get(fileLink, { responseType: 'arraybuffer' });
     const audioBuffer = Buffer.from(fileResponse.data);
-    const base64Audio = audioBuffer.toString('base64');
     
     if (!metadataString) {
       try {
@@ -88,18 +88,31 @@ async function processFileUpload(token, ghToken, chatId, messageIdToEdit, trackI
     }
     if (!metadataString) metadataString = "Неизвестный трек";
 
-    await tgEditMessage(token, chatId, messageIdToEdit, '☁️ Загружаю аудиофайл на GitHub (это может занять время)...');
+    await tgEditMessage(token, chatId, messageIdToEdit, '☁️ Загружаю аудиофайл в Hugging Face Dataset (безлимит!)...');
     const trackPath = `tracks/${trackId}.mp3`;
-    const existingTrack = await githubGetFile(ghToken, trackPath);
-    await githubPutFile(ghToken, trackPath, base64Audio, `add: трек ${trackId}`, existingTrack ? existingTrack.sha : null);
     
-    await tgEditMessage(token, chatId, messageIdToEdit, '📝 Обновляю базу данных (list.json)...');
+    // Upload to Hugging Face
+    await commit({
+      credentials: { accessToken: hfToken },
+      repo: { type: 'dataset', name: HF_DATASET },
+      operations: [
+        {
+          operation: 'addOrUpdate',
+          path: trackPath,
+          content: new Blob([audioBuffer])
+        }
+      ],
+      title: `Add track ${trackId}`
+    });
+    
+    await tgEditMessage(token, chatId, messageIdToEdit, '📝 Обновляю базу данных (list.json) на GitHub...');
     const { listData, listSha } = await fetchListJson(ghToken);
     
-    listData.tracks[trackId] = `https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}/${trackPath}`;
+    // Save Hugging Face direct link
+    listData.tracks[trackId] = `https://huggingface.co/datasets/${HF_DATASET}/resolve/main/${trackPath}`;
     const base64List = Buffer.from(JSON.stringify(listData, null, 2), 'utf8').toString('base64');
     
-    await githubPutFile(ghToken, 'list.json', base64List, `update: добавлен трек ${trackId} в базу`, listSha);
+    await githubPutFile(ghToken, 'list.json', base64List, `update: добавлен трек ${trackId} в базу (HF)`, listSha);
     
     await tgEditMessage(token, chatId, messageIdToEdit, `📖 Обновляю README.md... (${metadataString})`);
     let readmeSha = null;
@@ -115,7 +128,7 @@ async function processFileUpload(token, ghToken, chatId, messageIdToEdit, trackI
     const base64Readme = Buffer.from(readmeContent, 'utf8').toString('base64');
     await githubPutFile(ghToken, 'README.md', base64Readme, `docs: добавлен трек ${trackId} в README`, readmeSha);
     
-    await tgEditMessage(token, chatId, messageIdToEdit, `🎉 Успешно! Файл привязан к треку ${trackId} в базе данных.\nДобавлено как: ${metadataString}`);
+    await tgEditMessage(token, chatId, messageIdToEdit, `🎉 Успешно! Файл (Hugging Face) привязан к треку ${trackId} в базе данных.\nДобавлено как: ${metadataString}`);
   } catch (err) {
     console.error(err);
     await tgEditMessage(token, chatId, messageIdToEdit, '❌ Ошибка: ' + err.message);
@@ -127,7 +140,11 @@ module.exports = async (req, res) => {
     const { body } = req;
     const token = process.env.TELEGRAM_TOKEN;
     const ghToken = process.env.GITHUB_TOKEN;
+    const hfToken = process.env.HF_TOKEN;
     if (!token) return res.status(200).send('No token');
+    if (!hfToken) {
+       console.error("Missing HF_TOKEN");
+    }
     
     const isAuthorized = (userId) => {
       if (!process.env.ADMIN_IDS) return true;
@@ -166,9 +183,7 @@ module.exports = async (req, res) => {
                const trArtist = tr.artists.map(a => a.name).join(', ');
                trackMeta = ` (${trArtist} - ${tr.title})`;
              }
-          } catch (e) {
-             console.error("Не удалось получить инфу о треке", e.message);
-          }
+          } catch (e) {}
           
           await tgSend(token, chatId, `✅ Найден Track ID: ${trackId}${trackMeta}\nТеперь отправь мне MP3 файл, ответив на это сообщение.`, { reply_markup: { force_reply: true } });
         }
@@ -177,6 +192,11 @@ module.exports = async (req, res) => {
         if (msg.reply_to_message && msg.reply_to_message.text && msg.reply_to_message.text.includes('Track ID:')) {
           const trackIdMatch = msg.reply_to_message.text.match(/Track ID: (\d+)/);
           if (trackIdMatch) {
+            if (!hfToken) {
+               await tgSend(token, chatId, '❌ Ошибка: Не настроен HF_TOKEN в Vercel!');
+               return res.status(200).send('OK');
+            }
+          
             const trackId = trackIdMatch[1];
             const { listData } = await fetchListJson(ghToken);
             if (listData.tracks && listData.tracks[trackId]) {
@@ -189,8 +209,8 @@ module.exports = async (req, res) => {
             if (metaMatch) metadataString = metaMatch[1];
             
             const fileId = msg.audio ? msg.audio.file_id : msg.document.file_id;
-            const statusMsg = await tgSend(token, chatId, `⏳ Инициализация загрузки...`);
-            await processFileUpload(token, ghToken, chatId, statusMsg.result.message_id, trackId, fileId, metadataString);
+            const statusMsg = await tgSend(token, chatId, `⏳ Инициализация загрузки (Hugging Face)...`);
+            await processFileUpload(token, ghToken, hfToken, chatId, statusMsg.result.message_id, trackId, fileId, metadataString);
           }
         } 
         else {

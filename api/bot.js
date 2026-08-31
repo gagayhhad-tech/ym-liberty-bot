@@ -1,6 +1,8 @@
 ﻿const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 
+const BotConstructor = TelegramBot.default || TelegramBot;
+
 const GITHUB_REPO = 'gagayhhad-tech/ym-liberty-db';
 const GITHUB_BRANCH = 'main';
 
@@ -45,7 +47,7 @@ module.exports = async (req, res) => {
     const ghToken = process.env.GITHUB_TOKEN;
     if (!token) return res.status(200).send('No token');
     
-    const bot = new TelegramBot(token, { polling: false });
+    const bot = new BotConstructor(token, { polling: false });
     
     if (body && body.message) {
       const msg = body.message;

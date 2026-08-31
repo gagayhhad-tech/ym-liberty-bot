@@ -54,7 +54,8 @@ async function fetchListJson(ghToken) {
   const listFile = await githubGetFile(ghToken, 'list.json');
   if (listFile) {
     listSha = listFile.sha;
-    const content = Buffer.from(listFile.content, 'base64').toString('utf8');
+    // Strip BOM if present
+    const content = Buffer.from(listFile.content, 'base64').toString('utf8').replace(/^\uFEFF/, '');
     if (content.trim() !== '') listData = JSON.parse(content);
   }
   return { listData, listSha };
@@ -80,7 +81,6 @@ async function processFileUpload(token, ghToken, chatId, messageIdToEdit, trackI
     
     await githubPutFile(ghToken, 'list.json', base64List, `update: добавлен трек ${trackId} в базу`, listSha);
     
-    // Update README if metadata is provided
     if (metadataString) {
       await tgEditMessage(token, chatId, messageIdToEdit, '📖 Обновляю README.md...');
       let readmeSha = null;
@@ -92,7 +92,6 @@ async function processFileUpload(token, ghToken, chatId, messageIdToEdit, trackI
         readmeContent = Buffer.from(readmeFile.content, 'base64').toString('utf8');
       }
       
-      // Append the new track to the end
       readmeContent += `\n- ${metadataString} \`(ID: ${trackId})\``;
       const base64Readme = Buffer.from(readmeContent, 'utf8').toString('base64');
       await githubPutFile(ghToken, 'README.md', base64Readme, `docs: добавлен трек ${trackId} в README`, readmeSha);
@@ -134,7 +133,6 @@ module.exports = async (req, res) => {
           return res.status(200).send('OK');
         }
         
-        // Extract metadata from the bot's own message
         const botText = query.message.text;
         let metadataString = null;
         const metaMatch = botText.match(/🎵 \*\*(.+)\*\*/);
@@ -171,7 +169,6 @@ module.exports = async (req, res) => {
           
           let trackMeta = '';
           try {
-             // Получаем название трека из API Яндекса (запросы по прямому ID работают даже с серверов Европы!)
              const yandexRes = await axios.get(`https://api.music.yandex.net/tracks/${trackId}`, {
                headers: { 'User-Agent': 'YandexMusicAndroid/5.36.2 (Android 13)' }
              });

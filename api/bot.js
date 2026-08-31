@@ -169,14 +169,19 @@ module.exports = async (req, res) => {
             const fileLink = await tgGetFileLink(token, fileId);
             
             const fileResponse = await axios.get(fileLink, { responseType: 'arraybuffer' });
-            const tags = NodeID3.read(fileResponse.data);
             
-            if (!tags.title) {
+            // Fix Buffer conversion for ID3 parsing
+            const bufferData = Buffer.from(fileResponse.data);
+            const tags = NodeID3.read(bufferData);
+            
+            if (!tags || (!tags.title && !tags.artist)) {
               await tgSend(token, chatId, '❌ Не удалось прочитать название трека из MP3. Скинь ссылку на трек из Яндекса, а затем ответь файлом.');
               return res.status(200).send('OK');
             }
             
-            const searchQuery = `${tags.artist || ''} ${tags.title}`.trim();
+            const searchQuery = `${tags.artist || ''} ${tags.title || ''}`.trim();
+            await tgSend(token, chatId, `🔎 Ищу в Яндексе запрос: "${searchQuery}"...`);
+            
             const yandexRes = await axios.get(`https://api.music.yandex.net/search?text=${encodeURIComponent(searchQuery)}&type=track&page=0`, {
               headers: {
                 'X-Forwarded-For': '178.176.10.10',
@@ -187,7 +192,7 @@ module.exports = async (req, res) => {
             const tracks = yandexRes.data.result?.tracks?.results;
             
             if (!tracks || tracks.length === 0) {
-              await tgSend(token, chatId, `❌ Не нашел в Яндексе трек по запросу "${searchQuery}".`);
+              await tgSend(token, chatId, `❌ Не нашел в Яндексе трек по запросу "${searchQuery}". Попробуй скинуть ссылку.`);
               return res.status(200).send('OK');
             }
             
@@ -215,7 +220,11 @@ module.exports = async (req, res) => {
             
           } catch (e) {
              console.error(e);
-             await tgSend(token, chatId, '❌ Ошибка при обработке аудио (скорее всего трек недоступен в Яндексе или Vercel заблокирован). Скиньте ссылку вручную!');
+             let errDetails = e.message;
+             if (e.response) {
+               errDetails += ` (Status: ${e.response.status}). Data: ${JSON.stringify(e.response.data).substring(0, 50)}`;
+             }
+             await tgSend(token, chatId, '❌ Ошибка при поиске: ' + errDetails);
           }
         }
       }

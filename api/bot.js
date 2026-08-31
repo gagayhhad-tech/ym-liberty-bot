@@ -54,7 +54,6 @@ async function fetchListJson(ghToken) {
   const listFile = await githubGetFile(ghToken, 'list.json');
   if (listFile) {
     listSha = listFile.sha;
-    // Strip BOM if present
     const content = Buffer.from(listFile.content, 'base64').toString('utf8').replace(/^\uFEFF/, '');
     if (content.trim() !== '') listData = JSON.parse(content);
   }
@@ -66,8 +65,23 @@ async function processFileUpload(token, ghToken, chatId, messageIdToEdit, trackI
     await tgEditMessage(token, chatId, messageIdToEdit, `⏳ Скачиваю файл для трека ${trackId} из Telegram...`);
     const fileLink = await tgGetFileLink(token, fileId);
     const fileResponse = await axios.get(fileLink, { responseType: 'arraybuffer' });
-    const base64Audio = Buffer.from(fileResponse.data, 'binary').toString('base64');
+    const audioBuffer = Buffer.from(fileResponse.data);
+    const base64Audio = audioBuffer.toString('base64');
     
+    // Если метаданные не переданы из Яндекса, пытаемся достать их прямо из MP3 файла!
+    if (!metadataString) {
+      try {
+        const tags = NodeID3.read(audioBuffer);
+        if (tags && (tags.title || tags.artist)) {
+          metadataString = `${tags.artist || 'Неизвестный исполнитель'} - ${tags.title || 'Без названия'}`;
+        }
+      } catch (e) {
+        console.error("ID3 Parse Error:", e);
+      }
+    }
+    
+    if (!metadataString) metadataString = "Неизвестный трек";
+
     await tgEditMessage(token, chatId, messageIdToEdit, '☁️ Загружаю аудиофайл на GitHub (это может занять время)...');
     const trackPath = `tracks/${trackId}.mp3`;
     const existingTrack = await githubGetFile(ghToken, trackPath);
@@ -81,23 +95,21 @@ async function processFileUpload(token, ghToken, chatId, messageIdToEdit, trackI
     
     await githubPutFile(ghToken, 'list.json', base64List, `update: добавлен трек ${trackId} в базу`, listSha);
     
-    if (metadataString) {
-      await tgEditMessage(token, chatId, messageIdToEdit, '📖 Обновляю README.md...');
-      let readmeSha = null;
-      let readmeContent = '# Yandex Music Liberty DB\n\nБаза оригинальных (без цензуры) треков для мода Yandex Music.\n\n## Добавленные треки:\n';
-      
-      const readmeFile = await githubGetFile(ghToken, 'README.md');
-      if (readmeFile) {
-        readmeSha = readmeFile.sha;
-        readmeContent = Buffer.from(readmeFile.content, 'base64').toString('utf8');
-      }
-      
-      readmeContent += `\n- ${metadataString} \`(ID: ${trackId})\``;
-      const base64Readme = Buffer.from(readmeContent, 'utf8').toString('base64');
-      await githubPutFile(ghToken, 'README.md', base64Readme, `docs: добавлен трек ${trackId} в README`, readmeSha);
+    await tgEditMessage(token, chatId, messageIdToEdit, `📖 Обновляю README.md... (${metadataString})`);
+    let readmeSha = null;
+    let readmeContent = '# Yandex Music Liberty DB\n\nБаза оригинальных (без цензуры) треков для мода Yandex Music.\n\n## Добавленные треки:\n';
+    
+    const readmeFile = await githubGetFile(ghToken, 'README.md');
+    if (readmeFile) {
+      readmeSha = readmeFile.sha;
+      readmeContent = Buffer.from(readmeFile.content, 'base64').toString('utf8');
     }
     
-    await tgEditMessage(token, chatId, messageIdToEdit, `🎉 Успешно! Файл привязан к треку ${trackId} в базе данных.`);
+    readmeContent += `\n- ${metadataString} \`(ID: ${trackId})\``;
+    const base64Readme = Buffer.from(readmeContent, 'utf8').toString('base64');
+    await githubPutFile(ghToken, 'README.md', base64Readme, `docs: добавлен трек ${trackId} в README`, readmeSha);
+    
+    await tgEditMessage(token, chatId, messageIdToEdit, `🎉 Успешно! Файл привязан к треку ${trackId} в базе данных.\nДобавлено как: ${metadataString}`);
   } catch (err) {
     console.error(err);
     await tgEditMessage(token, chatId, messageIdToEdit, '❌ Ошибка: ' + err.message);
@@ -118,33 +130,7 @@ module.exports = async (req, res) => {
     };
 
     if (body.callback_query) {
-      const query = body.callback_query;
-      const chatId = query.message.chat.id;
-      if (!isAuthorized(query.from.id)) return res.status(200).send('OK');
-
-      const data = query.data;
-      if (data.startsWith('CONFIRM_TRACK_')) {
-        const trackId = data.replace('CONFIRM_TRACK_', '');
-        await tgAnswerCallbackQuery(token, query.id, 'Начинаю загрузку...');
-        
-        const origMsg = query.message.reply_to_message;
-        if (!origMsg || (!origMsg.audio && !origMsg.document)) {
-          await tgEditMessage(token, chatId, query.message.message_id, '❌ Ошибка: не найден оригинальный файл.');
-          return res.status(200).send('OK');
-        }
-        
-        const botText = query.message.text;
-        let metadataString = null;
-        const metaMatch = botText.match(/🎵 \*\*(.+)\*\*/);
-        if (metaMatch) metadataString = metaMatch[1];
-        
-        const fileId = origMsg.audio ? origMsg.audio.file_id : origMsg.document.file_id;
-        await processFileUpload(token, ghToken, chatId, query.message.message_id, trackId, fileId, metadataString);
-      } 
-      else if (data === 'CANCEL') {
-        await tgEditMessage(token, chatId, query.message.message_id, '❌ Отменено.');
-        await tgAnswerCallbackQuery(token, query.id, 'Отменено');
-      }
+      // ... (отключено из-за геоблока)
       return res.status(200).send('OK');
     }
     
@@ -166,22 +152,7 @@ module.exports = async (req, res) => {
             await tgSend(token, chatId, `⚠️ Этот трек (ID: ${trackId}) уже есть в базе!`);
             return res.status(200).send('OK');
           }
-          
-          let trackMeta = '';
-          try {
-             const yandexRes = await axios.get(`https://api.music.yandex.net/tracks/${trackId}`, {
-               headers: { 'User-Agent': 'YandexMusicAndroid/5.36.2 (Android 13)' }
-             });
-             if (yandexRes.data.result && yandexRes.data.result.length > 0) {
-               const tr = yandexRes.data.result[0];
-               const trArtist = tr.artists.map(a => a.name).join(', ');
-               trackMeta = ` (${trArtist} - ${tr.title})`;
-             }
-          } catch (e) {
-             console.error("Не удалось получить инфу о треке", e.message);
-          }
-          
-          await tgSend(token, chatId, `✅ Найден Track ID: ${trackId}${trackMeta}\nТеперь отправь мне MP3 файл, ответив на это сообщение.`, { reply_markup: { force_reply: true } });
+          await tgSend(token, chatId, `✅ Найден Track ID: ${trackId}\nТеперь отправь мне MP3 файл, ответив на это сообщение.`, { reply_markup: { force_reply: true } });
         }
       } 
       else if (msg.audio || msg.document) {
@@ -195,17 +166,13 @@ module.exports = async (req, res) => {
               return res.status(200).send('OK');
             }
             
-            let metadataString = null;
-            const metaMatch = msg.reply_to_message.text.match(/Track ID: \d+ \((.+)\)/);
-            if (metaMatch) metadataString = metaMatch[1];
-            
             const fileId = msg.audio ? msg.audio.file_id : msg.document.file_id;
             const statusMsg = await tgSend(token, chatId, `⏳ Инициализация загрузки...`);
-            await processFileUpload(token, ghToken, chatId, statusMsg.result.message_id, trackId, fileId, metadataString);
+            await processFileUpload(token, ghToken, chatId, statusMsg.result.message_id, trackId, fileId, null);
           }
         } 
         else {
-            await tgSend(token, chatId, '⚠️ Умный поиск временно отключен. Чтобы добавить трек, скинь прямую ссылку из Яндекса!');
+            await tgSend(token, chatId, '⚠️ Чтобы добавить трек, скинь прямую ссылку из Яндекса, а затем ответь файлом!');
         }
       }
     }

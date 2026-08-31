@@ -50,23 +50,13 @@ async function githubGetFile(token, path) {
   }
 }
 
-async function fetchListJson(ghToken) {
-  let listData = { tracks: {} };
-  let listSha = null;
-  const listFile = await githubGetFile(ghToken, 'list.json');
-  if (listFile) {
-    listSha = listFile.sha;
-    const content = Buffer.from(listFile.content, 'base64').toString('utf8').replace(/^\uFEFF/, '');
-    if (content.trim() !== '') {
-      const parsed = JSON.parse(content);
-      if (parsed.tracks) {
-        listData = parsed;
-      } else {
-        listData.tracks = parsed;
-      }
-    }
+async function fetchJsonFile(ghToken, path, defaultVal) {
+  const file = await githubGetFile(ghToken, path);
+  if (file) {
+    const content = Buffer.from(file.content, 'base64').toString('utf8').replace(/^\uFEFF/, '');
+    if (content.trim() !== '') return { data: JSON.parse(content), sha: file.sha };
   }
-  return { listData, listSha };
+  return { data: defaultVal, sha: null };
 }
 
 async function processFileUpload(token, ghToken, hfToken, chatId, messageIdToEdit, trackId, fileId, metadataString = null) {
@@ -88,10 +78,9 @@ async function processFileUpload(token, ghToken, hfToken, chatId, messageIdToEdi
     }
     if (!metadataString) metadataString = "Неизвестный трек";
 
-    await tgEditMessage(token, chatId, messageIdToEdit, '☁️ Загружаю аудиофайл в Hugging Face Dataset (безлимит!)...');
+    await tgEditMessage(token, chatId, messageIdToEdit, '☁️ Загружаю аудиофайл в Hugging Face Dataset...');
     const trackPath = `tracks/${trackId}.mp3`;
     
-    // Upload to Hugging Face
     await commit({
       credentials: { accessToken: hfToken },
       repo: { type: 'dataset', name: HF_DATASET },
@@ -106,13 +95,12 @@ async function processFileUpload(token, ghToken, hfToken, chatId, messageIdToEdi
     });
     
     await tgEditMessage(token, chatId, messageIdToEdit, '📝 Обновляю базу данных (list.json) на GitHub...');
-    const { listData, listSha } = await fetchListJson(ghToken);
+    const { data: listData, sha: listSha } = await fetchJsonFile(ghToken, 'list.json', { tracks: {} });
+    if (!listData.tracks) listData.tracks = {};
     
-    // Save Hugging Face direct link
     listData.tracks[trackId] = `https://huggingface.co/datasets/${HF_DATASET}/resolve/main/${trackPath}`;
     const base64List = Buffer.from(JSON.stringify(listData, null, 2), 'utf8').toString('base64');
-    
-    await githubPutFile(ghToken, 'list.json', base64List, `update: добавлен трек ${trackId} в базу (HF)`, listSha);
+    await githubPutFile(ghToken, 'list.json', base64List, `update: загружен трек ${trackId}`, listSha);
     
     await tgEditMessage(token, chatId, messageIdToEdit, `📖 Обновляю README.md... (${metadataString})`);
     let readmeSha = null;
@@ -124,11 +112,14 @@ async function processFileUpload(token, ghToken, hfToken, chatId, messageIdToEdi
       readmeContent = Buffer.from(readmeFile.content, 'base64').toString('utf8');
     }
     
+    // Удаляем старую запись, если она была (для функции ЗАМЕНЫ)
+    readmeContent = readmeContent.split('\n').filter(line => !line.includes(`(ID: ${trackId})`)).join('\n');
     readmeContent += `\n- ${metadataString} \`(ID: ${trackId})\``;
-    const base64Readme = Buffer.from(readmeContent, 'utf8').toString('base64');
-    await githubPutFile(ghToken, 'README.md', base64Readme, `docs: добавлен трек ${trackId} в README`, readmeSha);
     
-    await tgEditMessage(token, chatId, messageIdToEdit, `🎉 Успешно! Файл (Hugging Face) привязан к треку ${trackId} в базе данных.\nДобавлено как: ${metadataString}`);
+    const base64Readme = Buffer.from(readmeContent, 'utf8').toString('base64');
+    await githubPutFile(ghToken, 'README.md', base64Readme, `docs: добавлен/обновлен трек ${trackId}`, readmeSha);
+    
+    await tgEditMessage(token, chatId, messageIdToEdit, `🎉 Успешно! Файл (HF) привязан к треку ${trackId} в базе данных.\nДобавлено как: ${metadataString}`);
   } catch (err) {
     console.error(err);
     await tgEditMessage(token, chatId, messageIdToEdit, '❌ Ошибка: ' + err.message);
@@ -142,9 +133,6 @@ module.exports = async (req, res) => {
     const ghToken = process.env.GITHUB_TOKEN;
     const hfToken = process.env.HF_TOKEN;
     if (!token) return res.status(200).send('No token');
-    if (!hfToken) {
-       console.error("Missing HF_TOKEN");
-    }
     
     const isAuthorized = (userId) => {
       if (!process.env.ADMIN_IDS) return true;
@@ -152,22 +140,175 @@ module.exports = async (req, res) => {
       return allowedAdmins.includes(userId.toString());
     };
 
-    if (body.callback_query) return res.status(200).send('OK');
+    // 1. Прием репортов из мода (без авторизации)
+    if (body.type === 'report' && body.track_id) {
+      const trackId = body.track_id;
+      const { data: listData } = await fetchJsonFile(ghToken, 'list.json', { tracks: {} });
+      if (listData.tracks && listData.tracks[trackId]) {
+         return res.status(200).send({ status: 'already_exists' });
+      }
+      
+      const { data: reports, sha: reportsSha } = await fetchJsonFile(ghToken, 'reports.json', []);
+      if (!reports.includes(trackId)) {
+         reports.push(trackId);
+         const b64 = Buffer.from(JSON.stringify(reports, null, 2)).toString('base64');
+         await githubPutFile(ghToken, 'reports.json', b64, `report: жалоба на цензуру трека ${trackId}`, reportsSha);
+         
+         // Отправляем уведомление всем админам
+         if (process.env.ADMIN_IDS) {
+            const admins = process.env.ADMIN_IDS.split(',').map(id => id.trim());
+            for (const adminId of admins) {
+               try { await tgSend(token, adminId, `🚨 Новый репорт от пользователя!\nТрек зацензурен: https://music.yandex.ru/track/${trackId}`); } catch(e){}
+            }
+         }
+      }
+      return res.status(200).send({ status: 'reported' });
+    }
+
+    if (body.callback_query) {
+      const query = body.callback_query;
+      const chatId = query.message.chat.id;
+      if (!isAuthorized(query.from.id)) return res.status(200).send('OK');
+      const data = query.data;
+
+      if (data === 'MENU_LIST') {
+         await tgAnswerCallbackQuery(token, query.id, 'Получаю список...');
+         const { data: listData } = await fetchJsonFile(ghToken, 'list.json', { tracks: {} });
+         const count = Object.keys(listData.tracks || {}).length;
+         await tgSend(token, chatId, `📚 В базе сейчас **${count}** треков.\n\nПосмотреть полный список с названиями можно тут:\nhttps://github.com/${GITHUB_REPO}#readme`, { parse_mode: 'Markdown' });
+      }
+      else if (data === 'MENU_DELETE') {
+         await tgAnswerCallbackQuery(token, query.id, 'Ожидаю ID...');
+         await tgSend(token, chatId, '🗑 Ответь на это сообщение ссылкой на трек или его ID, чтобы УДАЛИТЬ его из базы.', { reply_markup: { force_reply: true } });
+      }
+      else if (data === 'MENU_REPLACE') {
+         await tgAnswerCallbackQuery(token, query.id, 'Ожидаю ссылку...');
+         await tgSend(token, chatId, '🔄 Ответь на это сообщение ссылкой на трек, чтобы ЗАМЕНИТЬ его (защита от дубликатов будет проигнорирована).', { reply_markup: { force_reply: true } });
+      }
+      else if (data === 'MENU_REPORTS') {
+         await tgAnswerCallbackQuery(token, query.id, 'Загружаю репорты...');
+         const { data: reports } = await fetchJsonFile(ghToken, 'reports.json', []);
+         if (reports.length === 0) {
+            await tgSend(token, chatId, '✅ Пока нет новых сообщений о цензуре!');
+         } else {
+            const msg = reports.map(id => `- https://music.yandex.ru/track/${id}`).join('\n');
+            await tgSend(token, chatId, `🚨 **Треки, ожидающие загрузки:**\n${msg}\n\nЧтобы очистить список, нажми кнопку ниже.`, { 
+               parse_mode: 'Markdown',
+               reply_markup: { inline_keyboard: [[{ text: '🧹 Очистить репорты', callback_data: 'CLEAR_REPORTS' }]] }
+            });
+         }
+      }
+      else if (data === 'CLEAR_REPORTS') {
+         await tgAnswerCallbackQuery(token, query.id, 'Очищаю...');
+         const { sha } = await fetchJsonFile(ghToken, 'reports.json', []);
+         if (sha) {
+            const b64 = Buffer.from('[]').toString('base64');
+            await githubPutFile(ghToken, 'reports.json', b64, 'chore: список репортов очищен', sha);
+         }
+         await tgEditMessage(token, chatId, query.message.message_id, '✅ Список репортов очищен!');
+      }
+
+      return res.status(200).send('OK');
+    }
     
     if (body.message) {
       const msg = body.message;
       const chatId = msg.chat.id;
       
-      if (!isAuthorized(msg.from.id)) {
-        await tgSend(token, chatId, 'Извини, бот приватный и работает только для администраторов.');
-        return res.status(200).send('OK');
+      if (!isAuthorized(msg.from.id)) return res.status(200).send('OK');
+
+      if (msg.text && (msg.text === '/start' || msg.text === '/menu')) {
+         await tgSend(token, chatId, '🎛 **Панель управления базой YM Liberty**\nВыберите действие:', {
+            parse_mode: 'Markdown',
+            reply_markup: {
+               inline_keyboard: [
+                  [{ text: '📚 Существующие треки', callback_data: 'MENU_LIST' }],
+                  [{ text: '🗑 Удаление треков', callback_data: 'MENU_DELETE' }, { text: '🔄 Замена трека', callback_data: 'MENU_REPLACE' }],
+                  [{ text: '🚨 Сообщения о цензуре', callback_data: 'MENU_REPORTS' }]
+               ]
+            }
+         });
+         return res.status(200).send('OK');
       }
 
-      if (msg.text && msg.text.includes('music.yandex.ru')) {
+      // Обработка ответов на меню (Удаление / Замена / Добавление MP3)
+      if (msg.reply_to_message && msg.reply_to_message.text) {
+         const replyText = msg.reply_to_message.text;
+
+         // Обработка УДАЛЕНИЯ
+         if (replyText.includes('чтобы УДАЛИТЬ его из базы')) {
+            const trackMatch = msg.text.match(/track\/(\d+)/) || msg.text.match(/^(\d+)$/);
+            if (!trackMatch) {
+               await tgSend(token, chatId, '❌ Не смог найти Track ID в твоем сообщении.');
+               return res.status(200).send('OK');
+            }
+            const trackId = trackMatch[1];
+            const statusMsg = await tgSend(token, chatId, `⏳ Удаляю трек ${trackId}...`);
+            
+            const { data: listData, sha: listSha } = await fetchJsonFile(ghToken, 'list.json', { tracks: {} });
+            if (listData.tracks && listData.tracks[trackId]) {
+               delete listData.tracks[trackId];
+               const base64List = Buffer.from(JSON.stringify(listData, null, 2), 'utf8').toString('base64');
+               await githubPutFile(ghToken, 'list.json', base64List, `delete: удален трек ${trackId}`, listSha);
+            }
+
+            const readmeFile = await githubGetFile(ghToken, 'README.md');
+            if (readmeFile) {
+               let readmeContent = Buffer.from(readmeFile.content, 'base64').toString('utf8');
+               readmeContent = readmeContent.split('\n').filter(line => !line.includes(`(ID: ${trackId})`)).join('\n');
+               const base64Readme = Buffer.from(readmeContent, 'utf8').toString('base64');
+               await githubPutFile(ghToken, 'README.md', base64Readme, `docs: удален трек ${trackId}`, readmeFile.sha);
+            }
+            await tgEditMessage(token, chatId, statusMsg.result.message_id, `✅ Трек ${trackId} успешно удален из базы и README!`);
+            return res.status(200).send('OK');
+         }
+
+         // Обработка подготовки ЗАМЕНЫ
+         if (replyText.includes('чтобы ЗАМЕНИТЬ его')) {
+            const trackMatch = msg.text.match(/track\/(\d+)/) || msg.text.match(/^(\d+)$/);
+            if (!trackMatch) return res.status(200).send('OK');
+            const trackId = trackMatch[1];
+            await tgSend(token, chatId, `🔄 ЗАМЕНА Track ID: ${trackId}\nОтправь мне новый MP3 файл для этого трека, ответив на ЭТО сообщение.`, { reply_markup: { force_reply: true } });
+            return res.status(200).send('OK');
+         }
+
+         // Обработка получения MP3 файла (Добавление / Замена)
+         if (msg.audio || msg.document) {
+            if (replyText.includes('Track ID:')) {
+               const isReplace = replyText.includes('ЗАМЕНА');
+               const trackIdMatch = replyText.match(/Track ID: (\d+)/);
+               if (trackIdMatch) {
+                  if (!hfToken) {
+                     await tgSend(token, chatId, '❌ Ошибка: Не настроен HF_TOKEN в Vercel!');
+                     return res.status(200).send('OK');
+                  }
+                  const trackId = trackIdMatch[1];
+                  
+                  if (!isReplace) {
+                     const { data: listData } = await fetchJsonFile(ghToken, 'list.json', { tracks: {} });
+                     if (listData.tracks && listData.tracks[trackId]) {
+                        await tgSend(token, chatId, `⚠️ Этот трек (ID: ${trackId}) уже есть в базе!`);
+                        return res.status(200).send('OK');
+                     }
+                  }
+                  
+                  let metadataString = null;
+                  const metaMatch = replyText.match(/Track ID: \d+ \((.+)\)/);
+                  if (metaMatch) metadataString = metaMatch[1];
+                  
+                  const fileId = msg.audio ? msg.audio.file_id : msg.document.file_id;
+                  const statusMsg = await tgSend(token, chatId, `⏳ Инициализация загрузки (Hugging Face)...`);
+                  await processFileUpload(token, ghToken, hfToken, chatId, statusMsg.result.message_id, trackId, fileId, metadataString);
+               }
+            }
+         }
+      }
+      // Обычная отправка ссылки (Добавление)
+      else if (msg.text && msg.text.includes('music.yandex.ru')) {
         const trackMatch = msg.text.match(/track\/(\d+)/);
         if (trackMatch) {
           const trackId = trackMatch[1];
-          const { listData } = await fetchListJson(ghToken);
+          const { data: listData } = await fetchJsonFile(ghToken, 'list.json', { tracks: {} });
           if (listData.tracks && listData.tracks[trackId]) {
             await tgSend(token, chatId, `⚠️ Этот трек (ID: ${trackId}) уже есть в базе!`);
             return res.status(200).send('OK');
@@ -186,35 +327,6 @@ module.exports = async (req, res) => {
           } catch (e) {}
           
           await tgSend(token, chatId, `✅ Найден Track ID: ${trackId}${trackMeta}\nТеперь отправь мне MP3 файл, ответив на это сообщение.`, { reply_markup: { force_reply: true } });
-        }
-      } 
-      else if (msg.audio || msg.document) {
-        if (msg.reply_to_message && msg.reply_to_message.text && msg.reply_to_message.text.includes('Track ID:')) {
-          const trackIdMatch = msg.reply_to_message.text.match(/Track ID: (\d+)/);
-          if (trackIdMatch) {
-            if (!hfToken) {
-               await tgSend(token, chatId, '❌ Ошибка: Не настроен HF_TOKEN в Vercel!');
-               return res.status(200).send('OK');
-            }
-          
-            const trackId = trackIdMatch[1];
-            const { listData } = await fetchListJson(ghToken);
-            if (listData.tracks && listData.tracks[trackId]) {
-              await tgSend(token, chatId, `⚠️ Этот трек (ID: ${trackId}) уже есть в базе!`);
-              return res.status(200).send('OK');
-            }
-            
-            let metadataString = null;
-            const metaMatch = msg.reply_to_message.text.match(/Track ID: \d+ \((.+)\)/);
-            if (metaMatch) metadataString = metaMatch[1];
-            
-            const fileId = msg.audio ? msg.audio.file_id : msg.document.file_id;
-            const statusMsg = await tgSend(token, chatId, `⏳ Инициализация загрузки (Hugging Face)...`);
-            await processFileUpload(token, ghToken, hfToken, chatId, statusMsg.result.message_id, trackId, fileId, metadataString);
-          }
-        } 
-        else {
-            await tgSend(token, chatId, '⚠️ Чтобы добавить трек, скинь прямую ссылку из Яндекса, а затем ответь файлом!');
         }
       }
     }

@@ -60,7 +60,7 @@ async function fetchListJson(ghToken) {
   return { listData, listSha };
 }
 
-async function processFileUpload(token, ghToken, chatId, messageIdToEdit, trackId, fileId) {
+async function processFileUpload(token, ghToken, chatId, messageIdToEdit, trackId, fileId, metadataString = null) {
   try {
     await tgEditMessage(token, chatId, messageIdToEdit, `⏳ Скачиваю файл для трека ${trackId} из Telegram...`);
     const fileLink = await tgGetFileLink(token, fileId);
@@ -79,6 +79,25 @@ async function processFileUpload(token, ghToken, chatId, messageIdToEdit, trackI
     const base64List = Buffer.from(JSON.stringify(listData, null, 2), 'utf8').toString('base64');
     
     await githubPutFile(ghToken, 'list.json', base64List, `update: добавлен трек ${trackId} в базу`, listSha);
+    
+    // Update README if metadata is provided
+    if (metadataString) {
+      await tgEditMessage(token, chatId, messageIdToEdit, '📖 Обновляю README.md...');
+      let readmeSha = null;
+      let readmeContent = '# Yandex Music Liberty DB\n\nБаза оригинальных (без цензуры) треков для мода Yandex Music.\n\n## Добавленные треки:\n';
+      
+      const readmeFile = await githubGetFile(ghToken, 'README.md');
+      if (readmeFile) {
+        readmeSha = readmeFile.sha;
+        readmeContent = Buffer.from(readmeFile.content, 'base64').toString('utf8');
+      }
+      
+      // Append the new track to the end
+      readmeContent += `\n- ${metadataString} \`(ID: ${trackId})\``;
+      const base64Readme = Buffer.from(readmeContent, 'utf8').toString('base64');
+      await githubPutFile(ghToken, 'README.md', base64Readme, `docs: добавлен трек ${trackId} в README`, readmeSha);
+    }
+    
     await tgEditMessage(token, chatId, messageIdToEdit, `🎉 Успешно! Файл привязан к треку ${trackId} в базе данных.`);
   } catch (err) {
     console.error(err);
@@ -115,8 +134,14 @@ module.exports = async (req, res) => {
           return res.status(200).send('OK');
         }
         
+        // Extract metadata from the bot's own message
+        const botText = query.message.text;
+        let metadataString = null;
+        const metaMatch = botText.match(/🎵 \*\*(.+)\*\*/);
+        if (metaMatch) metadataString = metaMatch[1];
+        
         const fileId = origMsg.audio ? origMsg.audio.file_id : origMsg.document.file_id;
-        await processFileUpload(token, ghToken, chatId, query.message.message_id, trackId, fileId);
+        await processFileUpload(token, ghToken, chatId, query.message.message_id, trackId, fileId, metadataString);
       } 
       else if (data === 'CANCEL') {
         await tgEditMessage(token, chatId, query.message.message_id, '❌ Отменено.');
@@ -143,7 +168,23 @@ module.exports = async (req, res) => {
             await tgSend(token, chatId, `⚠️ Этот трек (ID: ${trackId}) уже есть в базе!`);
             return res.status(200).send('OK');
           }
-          await tgSend(token, chatId, `✅ Найден Track ID: ${trackId}\nТеперь отправь мне MP3 файл, ответив на это сообщение.`, { reply_markup: { force_reply: true } });
+          
+          let trackMeta = '';
+          try {
+             // Получаем название трека из API Яндекса (запросы по прямому ID работают даже с серверов Европы!)
+             const yandexRes = await axios.get(`https://api.music.yandex.net/tracks/${trackId}`, {
+               headers: { 'User-Agent': 'YandexMusicAndroid/5.36.2 (Android 13)' }
+             });
+             if (yandexRes.data.result && yandexRes.data.result.length > 0) {
+               const tr = yandexRes.data.result[0];
+               const trArtist = tr.artists.map(a => a.name).join(', ');
+               trackMeta = ` (${trArtist} - ${tr.title})`;
+             }
+          } catch (e) {
+             console.error("Не удалось получить инфу о треке", e.message);
+          }
+          
+          await tgSend(token, chatId, `✅ Найден Track ID: ${trackId}${trackMeta}\nТеперь отправь мне MP3 файл, ответив на это сообщение.`, { reply_markup: { force_reply: true } });
         }
       } 
       else if (msg.audio || msg.document) {
@@ -157,75 +198,17 @@ module.exports = async (req, res) => {
               return res.status(200).send('OK');
             }
             
+            let metadataString = null;
+            const metaMatch = msg.reply_to_message.text.match(/Track ID: \d+ \((.+)\)/);
+            if (metaMatch) metadataString = metaMatch[1];
+            
             const fileId = msg.audio ? msg.audio.file_id : msg.document.file_id;
             const statusMsg = await tgSend(token, chatId, `⏳ Инициализация загрузки...`);
-            await processFileUpload(token, ghToken, chatId, statusMsg.result.message_id, trackId, fileId);
+            await processFileUpload(token, ghToken, chatId, statusMsg.result.message_id, trackId, fileId, metadataString);
           }
         } 
         else {
-          await tgSend(token, chatId, `⏳ Читаю ID3-теги файла...`);
-          try {
-            const fileId = msg.audio ? msg.audio.file_id : msg.document.file_id;
-            const fileLink = await tgGetFileLink(token, fileId);
-            
-            const fileResponse = await axios.get(fileLink, { responseType: 'arraybuffer' });
-            
-            // Fix Buffer conversion for ID3 parsing
-            const bufferData = Buffer.from(fileResponse.data);
-            const tags = NodeID3.read(bufferData);
-            
-            if (!tags || (!tags.title && !tags.artist)) {
-              await tgSend(token, chatId, '❌ Не удалось прочитать название трека из MP3. Скинь ссылку на трек из Яндекса, а затем ответь файлом.');
-              return res.status(200).send('OK');
-            }
-            
-            const searchQuery = `${tags.artist || ''} ${tags.title || ''}`.trim();
-            await tgSend(token, chatId, `🔎 Ищу в Яндексе запрос: "${searchQuery}"...`);
-            
-            const yandexRes = await axios.get(`https://api.music.yandex.net/search?text=${encodeURIComponent(searchQuery)}&type=track&page=0`, {
-              headers: {
-                'X-Forwarded-For': '178.176.10.10',
-                'X-Real-IP': '178.176.10.10',
-                'User-Agent': 'YandexMusicAndroid/5.36.2 (Android 13)'
-              }
-            });
-            const tracks = yandexRes.data.result?.tracks?.results;
-            
-            if (!tracks || tracks.length === 0) {
-              await tgSend(token, chatId, `❌ Не нашел в Яндексе трек по запросу "${searchQuery}". Попробуй скинуть ссылку.`);
-              return res.status(200).send('OK');
-            }
-            
-            const bestMatch = tracks[0];
-            const trackId = bestMatch.id;
-            const trackTitle = bestMatch.title;
-            const trackArtist = bestMatch.artists.map(a => a.name).join(', ');
-            
-            const { listData } = await fetchListJson(ghToken);
-            if (listData[trackId]) {
-              await tgSend(token, chatId, `⚠️ Трек 🎵 ${trackArtist} - ${trackTitle} (ID: ${trackId}) уже есть в нашей базе!`);
-              return res.status(200).send('OK');
-            }
-            
-            await tgSend(token, chatId, `Нашел в Яндекс Музыке:\n🎵 **${trackArtist} - ${trackTitle}**\n*(ID: ${trackId})*\n\nЭто нужный трек?`, {
-              parse_mode: 'Markdown',
-              reply_to_message_id: msg.message_id,
-              reply_markup: {
-                inline_keyboard: [
-                  [{ text: '✅ Да, загрузить', callback_data: `CONFIRM_TRACK_${trackId}` }],
-                  [{ text: '❌ Нет', callback_data: 'CANCEL' }]
-                ]
-              }
-            });
-            
-          } catch (e) {
-             console.error(e);
-             let errDetails = e.message;
-             if (e.response) {
-               errDetails += ` (Status: ${e.response.status}). Data: ${JSON.stringify(e.response.data).substring(0, 50)}`;
-             }
-             await tgSend(token, chatId, '❌ Ошибка при поиске: ' + errDetails);
-          }
+            await tgSend(token, chatId, '⚠️ Умный поиск временно отключен. Чтобы добавить трек, скинь прямую ссылку из Яндекса!');
         }
       }
     }

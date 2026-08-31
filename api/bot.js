@@ -5,7 +5,7 @@ const GITHUB_REPO = 'gagayhhad-tech/ym-liberty-db';
 const GITHUB_BRANCH = 'main';
 
 async function githubPutFile(token, path, contentBase64, message, sha = null) {
-  const url = \https://api.github.com/repos/\/contents/\\;
+  const url = `https://api.github.com/repos/${GITHUB_REPO}/contents/${path}`;
   const data = {
     message: message,
     content: contentBase64,
@@ -15,7 +15,7 @@ async function githubPutFile(token, path, contentBase64, message, sha = null) {
 
   const res = await axios.put(url, data, {
     headers: {
-      'Authorization': \Bearer \\,
+      'Authorization': `Bearer ${token}`,
       'Accept': 'application/vnd.github.v3+json'
     }
   });
@@ -24,10 +24,10 @@ async function githubPutFile(token, path, contentBase64, message, sha = null) {
 
 async function githubGetFile(token, path) {
   try {
-    const url = \https://api.github.com/repos/\/contents/\?ref=\\;
+    const url = `https://api.github.com/repos/${GITHUB_REPO}/contents/${path}?ref=${GITHUB_BRANCH}`;
     const res = await axios.get(url, {
       headers: {
-        'Authorization': \Bearer \\,
+        'Authorization': `Bearer ${token}`,
         'Accept': 'application/vnd.github.v3+json'
       }
     });
@@ -62,7 +62,7 @@ module.exports = async (req, res) => {
       if (msg.text && msg.text.includes('music.yandex.ru')) {
         const trackMatch = msg.text.match(/track\/(\d+)/);
         if (trackMatch) {
-          await bot.sendMessage(chatId, \✅ Найден Track ID: \\nТеперь отправь мне MP3 файл (как аудио или как документ), ответив на это сообщение.\, {
+          await bot.sendMessage(chatId, `✅ Найден Track ID: ${trackMatch[1]}\nТеперь отправь мне MP3 файл (как аудио или как документ), ответив на это сообщение.`, {
             reply_markup: { force_reply: true }
           });
         }
@@ -71,24 +71,21 @@ module.exports = async (req, res) => {
           const trackIdMatch = msg.reply_to_message.text.match(/Track ID: (\d+)/);
           if (trackIdMatch) {
             const trackId = trackIdMatch[1];
-            await bot.sendMessage(chatId, \⏳ Скачиваю файл для трека \ из Telegram...\);
+            await bot.sendMessage(chatId, `⏳ Скачиваю файл для трека ${trackId} из Telegram...`);
             
             try {
               const fileId = msg.audio ? msg.audio.file_id : msg.document.file_id;
               const fileLink = await bot.getFileLink(fileId);
               
-              // 1. Download file from telegram
               const fileResponse = await axios.get(fileLink, { responseType: 'arraybuffer' });
               const base64Audio = Buffer.from(fileResponse.data, 'binary').toString('base64');
               
               await bot.sendMessage(chatId, '☁️ Загружаю аудиофайл на GitHub...');
-              // 2. Upload to Github tracks/
-              const trackPath = \	racks/\.mp3\;
+              const trackPath = `tracks/${trackId}.mp3`;
               const existingTrack = await githubGetFile(ghToken, trackPath);
-              await githubPutFile(ghToken, trackPath, base64Audio, \dd: трек \\, existingTrack ? existingTrack.sha : null);
+              await githubPutFile(ghToken, trackPath, base64Audio, `add: трек ${trackId}`, existingTrack ? existingTrack.sha : null);
               
               await bot.sendMessage(chatId, '📝 Обновляю базу данных (list.json)...');
-              // 3. Update list.json
               let listData = {};
               let listSha = null;
               const listFile = await githubGetFile(ghToken, 'list.json');
@@ -100,12 +97,12 @@ module.exports = async (req, res) => {
                 }
               }
               
-              listData[trackId] = \https://raw.githubusercontent.com/\/\/\\;
+              listData[trackId] = `https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}/${trackPath}`;
               const base64List = Buffer.from(JSON.stringify(listData, null, 2), 'utf8').toString('base64');
               
-              await githubPutFile(ghToken, 'list.json', base64List, \update: добавлен трек \ в базу\, listSha);
+              await githubPutFile(ghToken, 'list.json', base64List, `update: добавлен трек ${trackId} в базу`, listSha);
               
-              await bot.sendMessage(chatId, \🎉 Успешно! Файл привязан к треку \ в базе данных.\);
+              await bot.sendMessage(chatId, `🎉 Успешно! Файл привязан к треку ${trackId} в базе данных.`);
             } catch (err) {
               console.error(err);
               await bot.sendMessage(chatId, '❌ Произошла ошибка при загрузке: ' + err.message);

@@ -55,6 +55,8 @@ module.exports = async (req, res) => {
     "X-Yandex-Music-Client": "YandexMusicAndroid/24023621",
     "Accept": "application/json",
     "Accept-Language": "ru",
+    "X-Forwarded-For": "81.19.73.1",
+    "X-Real-IP": "81.19.73.1"
   };
 
   try {

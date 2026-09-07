@@ -342,7 +342,7 @@
       </div>
     </div>
 
-    <!-- Modern Yandex ID Auth Modal Dialog -->
+    <!-- Modern Yandex ID Auth Modal Dialog (Device Flow) -->
     <div id="modal-yandex-login" class="dialog-overlay hidden">
       <div class="dialog-card auth-modal-card">
         <div class="auth-modal-header">
@@ -350,40 +350,60 @@
             <span class="yandex-letter-large">Я</span>
           </div>
           <h3>Вход через Яндекс ID</h3>
-          <p class="text-secondary">Авторизация для доступа к вашей медиатеке</p>
+          <p class="text-secondary">Для доступа к вашей медиатеке и синхронизации</p>
         </div>
 
-        <div class="auth-steps">
-          <div class="auth-step-item">
-            <div class="step-num">1</div>
-            <div class="step-content">
-              <p>Нажмите кнопку и подтвердите вход в аккаунт Яндекса:</p>
-              <button id="btn-open-yandex-oauth" class="btn-yandex-id btn-yandex-full">
-                <span class="yandex-letter">Я</span>
-                <span>Открыть Яндекс ID <i class="bi bi-box-arrow-up-right"></i></span>
+        <!-- Primary Flow: Official Device Code Flow -->
+        <div id="auth-device-flow-block">
+          <p style="font-size: 13px; text-align: center; color: #ddd; margin-bottom: 6px;">
+            Скопируйте код и введите его на странице Яндекса:
+          </p>
+
+          <div class="device-code-box">
+            <div id="device-code-display" class="device-code-value">••••••••</div>
+            <div class="device-code-actions">
+              <button id="btn-copy-device-code" class="btn-code-copy" type="button">
+                <i class="bi bi-copy"></i>
+                <span id="btn-copy-code-text">Скопировать код</span>
               </button>
             </div>
           </div>
 
-          <div class="auth-step-item">
-            <div class="step-num">2</div>
-            <div class="step-content">
-              <p>Скопируйте полученную ссылку (или строку) и нажмите кнопку ниже:</p>
-              <button id="btn-paste-clipboard-token" class="btn-paste-clipboard">
-                <i class="bi bi-clipboard-check"></i>
-                <span>Вставить автоматически</span>
-              </button>
-              <div class="manual-input-row" style="margin-top: 8px;">
-                <input type="text" id="input-modal-token" placeholder="Или вставьте ссылку / токен сюда...">
-                <button id="btn-submit-modal-token" class="btn-primary">OK</button>
-              </div>
+          <a id="btn-open-yandex-device" href="https://ya.ru/device" target="_blank" class="btn-yandex-id btn-yandex-full" style="text-decoration: none; margin-top: 10px;">
+            <span class="yandex-letter">Я</span>
+            <span>Открыть ya.ru/device <i class="bi bi-box-arrow-up-right"></i></span>
+          </a>
+
+          <div id="device-poll-indicator" class="device-poll-status">
+            <div class="poll-dot"></div>
+            <span id="device-poll-text">Ожидание подтверждения на ya.ru/device...</span>
+          </div>
+        </div>
+
+        <!-- Alternative Methods Accordion -->
+        <div class="auth-alt-accordion">
+          <button id="btn-toggle-alt-methods" class="btn-toggle-alt" type="button">
+            <span>Или войти другим способом</span> <i class="bi bi-chevron-down" id="icon-toggle-alt"></i>
+          </button>
+          
+          <div id="auth-alt-content" class="auth-alt-content hidden">
+            <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">
+              Вставьте токен (<code style="color:#fed42b">y0_...</code>) или данные из Desktop Мода («Скопировать данные авторизации»):
+            </p>
+            <div class="manual-input-row">
+              <input type="text" id="input-modal-token" placeholder="Токен или JSON из настроек мода...">
+              <button id="btn-submit-modal-token" class="btn-primary" type="button">OK</button>
             </div>
+            <button id="btn-paste-clipboard-token" class="btn-paste-clipboard" type="button">
+              <i class="bi bi-clipboard-check"></i>
+              <span>Вставить из буфера обмена</span>
+            </button>
           </div>
         </div>
 
         <div id="modal-token-status" class="token-status" style="margin-top: 10px;"></div>
 
-        <button id="btn-close-yandex-login" class="btn-secondary" style="margin-top: 16px; width: 100%;">Закрыть</button>
+        <button id="btn-close-yandex-login" class="btn-secondary" style="margin-top: 14px; width: 100%;" type="button">Закрыть</button>
       </div>
     </div>
 
@@ -392,6 +412,6 @@
 
   </div>
 
-  <script src="/app.js?v=4"></script>
+  <script src="/app.js?v=5"></script>
 </body>
 </html>

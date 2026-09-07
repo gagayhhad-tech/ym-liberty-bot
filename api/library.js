@@ -120,8 +120,12 @@ module.exports = async (req, res) => {
     });
   } catch (err) {
     console.error("Library fetch error:", err.message);
-    return res.status(500).json({
-      error: "Failed to fetch user library",
+    const status = err.response?.status === 401 || err.response?.status === 403 ? 401 : 500;
+    const msg = status === 401
+      ? "Недействительный токен Яндекс ID. Пожалуйста, выполните вход через код подтверждения."
+      : "Не удалось загрузить данные аккаунта";
+    return res.status(status).json({
+      error: msg,
       details: err.response?.data || err.message,
     });
   }

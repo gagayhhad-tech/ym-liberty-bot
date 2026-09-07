@@ -1,0 +1,6 @@
+node_modules/
+.env
+.vercel/
+*.ps1
+merge.js
+migrate.js

@@ -370,9 +370,11 @@
     }
 
     updatePlayState() {
-      const playIcon = state.isPlaying ? '⏸' : '▶';
-      dom.btnMiniPlay.textContent = playIcon;
-      dom.btnPlayerPlay.textContent = playIcon;
+      const playIconHtml = state.isPlaying
+        ? '<i class="bi bi-pause-fill"></i>'
+        : '<i class="bi bi-play-fill"></i>';
+      if (dom.btnMiniPlay) dom.btnMiniPlay.innerHTML = playIconHtml;
+      if (dom.btnPlayerPlay) dom.btnPlayerPlay.innerHTML = playIconHtml;
 
       // Update .playing active class in lists
       document.querySelectorAll('.track-item').forEach(el => {
@@ -414,9 +416,11 @@
 
     updateLikeButtons(track) {
       const isLiked = state.likedTracks.some(t => String(t.id) === String(track.id));
-      const icon = isLiked ? '❤️' : '🤍';
-      dom.btnMiniLike.textContent = icon;
-      dom.btnPlayerLike.textContent = icon;
+      const iconHtml = isLiked
+        ? '<i class="bi bi-heart-fill liked"></i>'
+        : '<i class="bi bi-heart"></i>';
+      if (dom.btnMiniLike) dom.btnMiniLike.innerHTML = iconHtml;
+      if (dom.btnPlayerLike) dom.btnPlayerLike.innerHTML = iconHtml;
     }
 
     addToHistory(track) {
@@ -464,11 +468,11 @@
       <div class="track-info">
         <div class="track-title-row">
           <span class="track-title">${escapeHtml(track.title)}</span>
-          ${isLiberty ? '<span class="badge-liberty" title="Без цензуры">🕊️</span>' : ''}
+          ${isLiberty ? '<span class="badge-liberty" title="Без цензуры"><i class="bi bi-shield-fill-check"></i></span>' : ''}
         </div>
         <span class="track-artist">${escapeHtml(track.artists || 'Неизвестен')}</span>
       </div>
-      <button class="track-action-btn" title="Воспроизвести">▶</button>
+      <button class="track-action-btn" title="Воспроизвести"><i class="bi bi-play-fill"></i></button>
     `;
 
     item.addEventListener('click', () => {
@@ -493,7 +497,7 @@
       card.innerHTML = `
         <div class="popular-card-cover-wrapper">
           <img class="popular-card-cover" src="${cover}" alt="${escapeHtml(track.title)}" loading="lazy">
-          <div class="popular-card-play-btn">▶</div>
+          <div class="popular-card-play-btn"><i class="bi bi-play-fill"></i></div>
         </div>
         <div class="popular-card-title">${escapeHtml(track.title)}</div>
         <div class="popular-card-artist">${escapeHtml(track.artists || 'Неизвестен')}</div>
@@ -812,66 +816,62 @@
       }
     });
 
-    dom.btnGotoSettings.addEventListener('click', () => {
-      switchView('view-settings');
-    });
-
-    dom.miniPlayer.addEventListener('click', (e) => {
+    dom.miniPlayer?.addEventListener('click', (e) => {
       if (e.target.closest('#btn-mini-play') || e.target.closest('#btn-mini-like')) return;
       dom.playerModal.classList.remove('closed');
     });
 
-    dom.btnMiniPlay.addEventListener('click', (e) => {
+    dom.btnMiniPlay?.addEventListener('click', (e) => {
       e.stopPropagation();
       audio.togglePlay();
     });
 
-    dom.btnMiniLike.addEventListener('click', (e) => {
+    dom.btnMiniLike?.addEventListener('click', (e) => {
       e.stopPropagation();
       toggleLikeCurrentTrack();
     });
 
-    dom.btnPlayerClose.addEventListener('click', () => {
+    dom.btnPlayerClose?.addEventListener('click', () => {
       dom.playerModal.classList.add('closed');
     });
 
-    dom.btnPlayerPlay.addEventListener('click', () => {
+    dom.btnPlayerPlay?.addEventListener('click', () => {
       audio.togglePlay();
     });
 
-    dom.btnPlayerNext.addEventListener('click', () => {
+    dom.btnPlayerNext?.addEventListener('click', () => {
       audio.playNext();
     });
 
-    dom.btnPlayerPrev.addEventListener('click', () => {
+    dom.btnPlayerPrev?.addEventListener('click', () => {
       audio.playPrev();
     });
 
-    dom.btnPlayerLike.addEventListener('click', () => {
+    dom.btnPlayerLike?.addEventListener('click', () => {
       toggleLikeCurrentTrack();
     });
 
-    dom.btnPlayerShuffle.addEventListener('click', () => {
+    dom.btnPlayerShuffle?.addEventListener('click', () => {
       state.isShuffle = !state.isShuffle;
       dom.btnPlayerShuffle.classList.toggle('active', state.isShuffle);
       showToast(state.isShuffle ? 'Перемешивание включено' : 'Перемешивание выключено');
     });
 
-    dom.btnPlayerRepeat.addEventListener('click', () => {
+    dom.btnPlayerRepeat?.addEventListener('click', () => {
       if (state.repeatMode === 'off') {
         state.repeatMode = 'all';
         dom.btnPlayerRepeat.classList.add('active');
-        dom.btnPlayerRepeat.textContent = '🔁';
+        dom.btnPlayerRepeat.innerHTML = '<i class="bi bi-repeat"></i>';
         showToast('Повтор списка');
       } else if (state.repeatMode === 'all') {
         state.repeatMode = 'one';
         dom.btnPlayerRepeat.classList.add('active');
-        dom.btnPlayerRepeat.textContent = '🔂';
+        dom.btnPlayerRepeat.innerHTML = '<i class="bi bi-repeat-1"></i>';
         showToast('Повтор одного трека');
       } else {
         state.repeatMode = 'off';
         dom.btnPlayerRepeat.classList.remove('active');
-        dom.btnPlayerRepeat.textContent = '🔁';
+        dom.btnPlayerRepeat.innerHTML = '<i class="bi bi-repeat"></i>';
         showToast('Повтор выключен');
       }
     });

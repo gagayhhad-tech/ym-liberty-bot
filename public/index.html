@@ -13,7 +13,8 @@
   <link rel="icon" type="image/png" href="/favicon.png">
   <link rel="apple-touch-icon" href="/icon-192.png">
   
-  <link rel="stylesheet" href="/app.css?v=3">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="/app.css?v=4">
 </head>
 <body class="dark-theme">
   <div id="app" class="app-container">
@@ -21,13 +22,13 @@
     <!-- Top Status / Header -->
     <header class="app-header">
       <div class="brand">
-        <span class="logo-icon">🎵</span>
+        <span class="logo-icon"><i class="bi bi-music-note-beamed"></i></span>
         <span class="brand-name">Музыка</span>
-        <span class="badge-liberty-header">Liberty 🕊️</span>
+        <span class="badge-liberty-header"><i class="bi bi-shield-fill-check"></i> Liberty</span>
       </div>
       <div class="header-actions">
         <button id="btn-header-account" class="btn-icon" title="Аккаунт" aria-label="Аккаунт">
-          <span id="header-avatar" class="avatar-placeholder">👤</span>
+          <span id="header-avatar" class="avatar-placeholder"><i class="bi bi-person-fill"></i></span>
         </button>
       </div>
     </header>
@@ -50,7 +51,7 @@
             <p class="vibe-subtitle">Бесконечный микс треков без цензуры</p>
             <div class="vibe-actions">
               <button id="btn-start-vibe" class="btn-play-vibe">
-                <span class="play-icon">▶</span> Включить волну
+                <span class="play-icon"><i class="bi bi-play-fill"></i></span> Включить волну
               </button>
             </div>
           </div>
@@ -59,7 +60,7 @@
         <!-- Popular Uncensored Tracks -->
         <div class="section-block">
           <div class="section-header">
-            <h3>Хиты без цензуры</h3>
+            <h3><i class="bi bi-fire" style="color: #ff5722; margin-right: 4px;"></i> Хиты без цензуры</h3>
             <span class="badge-count">YM Liberty</span>
           </div>
           <div class="horizontal-scroll" id="popular-tracks-list">
@@ -85,9 +86,9 @@
       <section id="view-search" class="view">
         <div class="search-header">
           <div class="search-input-wrapper">
-            <span class="search-icon">🔍</span>
+            <span class="search-icon"><i class="bi bi-search"></i></span>
             <input type="search" id="search-input" placeholder="Трек, исполнитель или альбом" autocomplete="off">
-            <button id="btn-search-clear" class="btn-clear hidden">✕</button>
+            <button id="btn-search-clear" class="btn-clear hidden"><i class="bi bi-x-circle-fill"></i></button>
           </div>
         </div>
 
@@ -108,9 +109,9 @@
           </div>
           <div id="search-results-list" class="track-vertical-list">
             <div class="search-placeholder-msg">
-              <span class="placeholder-icon">🎧</span>
+              <span class="placeholder-icon"><i class="bi bi-headphones"></i></span>
               <p>Введите запрос для поиска по всей Яндекс Музыке</p>
-              <small>Треки из базы YM Liberty отмечены бейджем 🕊️</small>
+              <small>Треки из базы YM Liberty отмечены бейджем <i class="bi bi-shield-fill-check"></i></small>
             </div>
           </div>
         </div>
@@ -119,7 +120,7 @@
       <!-- View: Library / Коллекция -->
       <section id="view-library" class="view">
         <div id="library-auth-prompt" class="auth-card hidden">
-          <div class="auth-card-icon">🎵</div>
+          <div class="auth-card-icon"><i class="bi bi-person-circle"></i></div>
           <h3>Войдите с Яндекс ID</h3>
           <p>Слушайте свои любимые треки, плейлисты и персональную волну без цензуры.</p>
           <button id="btn-login-yandex-library" class="btn-yandex-id">
@@ -131,12 +132,12 @@
         <div id="library-content">
           <!-- Liked Tracks Header Card -->
           <div class="liked-banner" id="card-liked-banner">
-            <div class="liked-heart-icon">❤️</div>
+            <div class="liked-heart-icon"><i class="bi bi-heart-fill"></i></div>
             <div class="liked-info">
               <h2>Мне нравится</h2>
               <p id="liked-count-text">0 треков</p>
             </div>
-            <button id="btn-play-liked" class="btn-play-liked" title="Включить">▶</button>
+            <button id="btn-play-liked" class="btn-play-liked" title="Включить"><i class="bi bi-play-fill"></i></button>
           </div>
 
           <div class="section-header" style="margin-top: 1.5rem;">
@@ -157,7 +158,7 @@
         <!-- Yandex ID Account Card -->
         <div class="settings-card" id="card-account">
           <div class="card-title-row">
-            <span class="card-icon" id="account-status-icon">👤</span>
+            <span class="card-icon" id="account-status-icon"><i class="bi bi-person-circle"></i></span>
             <div class="account-info-header">
               <h4 id="account-display-name">Яндекс Аккаунт</h4>
               <p class="text-secondary" id="account-sub-status">Не выполнен вход</p>
@@ -171,7 +172,7 @@
               <span>Войти с Яндекс ID</span>
             </button>
             <div class="manual-token-toggle">
-              <button id="btn-toggle-manual-token" class="btn-link">Ввести токен вручную ▾</button>
+              <button id="btn-toggle-manual-token" class="btn-link">Ввести токен вручную <i class="bi bi-chevron-down"></i></button>
             </div>
             <div id="manual-token-group" class="token-input-group hidden" style="margin-top: 10px;">
               <input type="password" id="input-token" placeholder="Токен или ссылка с токеном...">
@@ -183,7 +184,7 @@
           <div id="account-logged-in-block" class="hidden">
             <div class="account-details-row">
               <span class="badge-plus" id="badge-plus-status">Плюс Активен</span>
-              <button id="btn-logout" class="btn-logout">Выйти</button>
+              <button id="btn-logout" class="btn-logout"><i class="bi bi-box-arrow-right"></i> Выйти</button>
             </div>
           </div>
 
@@ -193,7 +194,7 @@
         <!-- YM Liberty Status -->
         <div class="settings-card">
           <div class="card-title-row">
-            <span class="card-icon">🕊️</span>
+            <span class="card-icon"><i class="bi bi-shield-fill-check" style="color: #4a9eff;"></i></span>
             <div>
               <h4>База YM Liberty</h4>
               <p class="text-secondary">Автоматический обход цензуры</p>
@@ -216,7 +217,7 @@
         <!-- PWA Install Card -->
         <div class="settings-card">
           <div class="card-title-row">
-            <span class="card-icon">📲</span>
+            <span class="card-icon"><i class="bi bi-phone" style="color: #fed42b;"></i></span>
             <div>
               <h4>Установка на телефон (PWA)</h4>
               <p class="text-secondary">Запуск в полноэкранном режиме как приложение</p>
@@ -233,7 +234,7 @@
           <p><strong>Яндекс Музыка Liberty (Mobile Web)</strong></p>
           <p class="text-secondary">Разработано в образовательных целях. Аудио стримится с серверов Яндекса и Hugging Face.</p>
           <a href="https://github.com/gagayhhad-tech/YandexMusicLiberty" target="_blank" class="github-link">
-            Репозиторий на GitHub ↗
+            Репозиторий на GitHub <i class="bi bi-box-arrow-up-right"></i>
           </a>
         </div>
       </section>
@@ -250,13 +251,13 @@
         <div class="mini-info">
           <div class="mini-title-row">
             <span id="mini-title" class="mini-title">Выберите трек</span>
-            <span id="mini-liberty-badge" class="badge-liberty hidden">🕊️</span>
+            <span id="mini-liberty-badge" class="badge-liberty hidden"><i class="bi bi-shield-fill-check"></i></span>
           </div>
           <span id="mini-artist" class="mini-artist">—</span>
         </div>
         <div class="mini-controls">
-          <button id="btn-mini-like" class="btn-icon" aria-label="Мне нравится">🤍</button>
-          <button id="btn-mini-play" class="btn-icon-play" aria-label="Воспроизведение">▶</button>
+          <button id="btn-mini-like" class="btn-icon" aria-label="Мне нравится"><i class="bi bi-heart"></i></button>
+          <button id="btn-mini-play" class="btn-icon-play" aria-label="Воспроизведение"><i class="bi bi-play-fill"></i></button>
         </div>
       </div>
     </div>
@@ -264,19 +265,19 @@
     <!-- Bottom Navigation Bar -->
     <nav class="bottom-nav">
       <button class="nav-item active" data-target="view-home">
-        <span class="nav-icon">🏠</span>
+        <span class="nav-icon"><i class="bi bi-house-door-fill"></i></span>
         <span class="nav-label">Главное</span>
       </button>
       <button class="nav-item" data-target="view-search">
-        <span class="nav-icon">🔍</span>
+        <span class="nav-icon"><i class="bi bi-search"></i></span>
         <span class="nav-label">Поиск</span>
       </button>
       <button class="nav-item" data-target="view-library">
-        <span class="nav-icon">❤️</span>
+        <span class="nav-icon"><i class="bi bi-heart-fill"></i></span>
         <span class="nav-label">Коллекция</span>
       </button>
       <button class="nav-item" data-target="view-settings">
-        <span class="nav-icon">⚙️</span>
+        <span class="nav-icon"><i class="bi bi-gear-fill"></i></span>
         <span class="nav-label">Настройки</span>
       </button>
     </nav>
@@ -287,11 +288,11 @@
       
       <!-- Top Bar of Full Player -->
       <div class="player-top-bar">
-        <button id="btn-player-close" class="btn-player-down" aria-label="Свернуть">⌵</button>
+        <button id="btn-player-close" class="btn-player-down" aria-label="Свернуть"><i class="bi bi-chevron-down"></i></button>
         <div class="player-top-title">
           <span>СЕЙЧАС ИГРАЕТ</span>
         </div>
-        <button id="btn-player-menu" class="btn-player-menu" aria-label="Меню">⋯</button>
+        <button id="btn-player-menu" class="btn-player-menu" aria-label="Меню"><i class="bi bi-three-dots"></i></button>
       </div>
 
       <!-- Center Big Artwork -->
@@ -306,11 +307,11 @@
         <div class="player-titles">
           <div class="title-with-badge">
             <h2 id="player-title" class="player-title">Название трека</h2>
-            <span id="player-liberty-badge" class="badge-liberty-large hidden" title="Без цензуры (YM Liberty)">🕊️ Без цензуры</span>
+            <span id="player-liberty-badge" class="badge-liberty-large hidden" title="Без цензуры (YM Liberty)"><i class="bi bi-shield-fill-check"></i> Без цензуры</span>
           </div>
           <p id="player-artist" class="player-artist">Исполнитель</p>
         </div>
-        <button id="btn-player-like" class="btn-player-like">🤍</button>
+        <button id="btn-player-like" class="btn-player-like"><i class="bi bi-heart"></i></button>
       </div>
 
       <!-- Seek Bar -->
@@ -328,11 +329,11 @@
 
       <!-- Controls -->
       <div class="player-controls">
-        <button id="btn-player-shuffle" class="btn-control-secondary" title="Перемешать">🔀</button>
-        <button id="btn-player-prev" class="btn-control-skip" title="Предыдущий">⏮</button>
-        <button id="btn-player-play" class="btn-control-play" title="Воспроизведение">▶</button>
-        <button id="btn-player-next" class="btn-control-skip" title="Следующий">⏭</button>
-        <button id="btn-player-repeat" class="btn-control-secondary" title="Повтор">🔁</button>
+        <button id="btn-player-shuffle" class="btn-control-secondary" title="Перемешать"><i class="bi bi-shuffle"></i></button>
+        <button id="btn-player-prev" class="btn-control-skip" title="Предыдущий"><i class="bi bi-skip-start-fill"></i></button>
+        <button id="btn-player-play" class="btn-control-play" title="Воспроизведение"><i class="bi bi-play-fill"></i></button>
+        <button id="btn-player-next" class="btn-control-skip" title="Следующий"><i class="bi bi-skip-end-fill"></i></button>
+        <button id="btn-player-repeat" class="btn-control-secondary" title="Повтор"><i class="bi bi-repeat"></i></button>
       </div>
 
       <!-- Bottom Audio Source Indicator -->
@@ -359,7 +360,7 @@
               <p>Нажмите кнопку и подтвердите вход в аккаунт Яндекса:</p>
               <button id="btn-open-yandex-oauth" class="btn-yandex-id btn-yandex-full">
                 <span class="yandex-letter">Я</span>
-                <span>Открыть Яндекс ID ↗</span>
+                <span>Открыть Яндекс ID <i class="bi bi-box-arrow-up-right"></i></span>
               </button>
             </div>
           </div>
@@ -369,7 +370,8 @@
             <div class="step-content">
               <p>Скопируйте полученную ссылку (или строку) и нажмите кнопку ниже:</p>
               <button id="btn-paste-clipboard-token" class="btn-paste-clipboard">
-                <span>📋 Вставить автоматически</span>
+                <i class="bi bi-clipboard-check"></i>
+                <span>Вставить автоматически</span>
               </button>
               <div class="manual-input-row" style="margin-top: 8px;">
                 <input type="text" id="input-modal-token" placeholder="Или вставьте ссылку / токен сюда...">
@@ -390,6 +392,6 @@
 
   </div>
 
-  <script src="/app.js?v=3"></script>
+  <script src="/app.js?v=4"></script>
 </body>
 </html>

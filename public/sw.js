@@ -1,4 +1,4 @@
-const CACHE_NAME = "ym-liberty-v3";
+const CACHE_NAME = "ym-liberty-v4";
 const ASSETS_TO_CACHE = [
   "/",
   "/index.html",

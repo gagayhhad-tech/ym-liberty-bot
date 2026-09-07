@@ -119,10 +119,13 @@
       <!-- View: Library / Коллекция -->
       <section id="view-library" class="view">
         <div id="library-auth-prompt" class="auth-card hidden">
-          <div class="auth-card-icon">🔑</div>
-          <h3>Вход по Яндекс Токену</h3>
-          <p>Введите ваш токен Яндекс Плюс в настройках, чтобы слушать любимые треки и плейлисты прямо здесь.</p>
-          <button id="btn-goto-settings" class="btn-primary">Настройки и токен</button>
+          <div class="auth-card-icon">🎵</div>
+          <h3>Войдите с Яндекс ID</h3>
+          <p>Слушайте свои любимые треки, плейлисты и персональную волну без цензуры.</p>
+          <button id="btn-login-yandex-library" class="btn-yandex-id">
+            <span class="yandex-letter">Я</span>
+            <span>Войти с Яндекс ID</span>
+          </button>
         </div>
 
         <div id="library-content">
@@ -151,20 +154,39 @@
           <h2>Настройки</h2>
         </div>
 
-        <!-- Token Input Card -->
-        <div class="settings-card">
+        <!-- Yandex ID Account Card -->
+        <div class="settings-card" id="card-account">
           <div class="card-title-row">
-            <span class="card-icon">🔑</span>
-            <div>
-              <h4>Яндекс Токен (OAuth)</h4>
-              <p class="text-secondary">Для доступа к вашим трекам и радио</p>
+            <span class="card-icon" id="account-status-icon">👤</span>
+            <div class="account-info-header">
+              <h4 id="account-display-name">Яндекс Аккаунт</h4>
+              <p class="text-secondary" id="account-sub-status">Не выполнен вход</p>
             </div>
           </div>
-          <div class="token-input-group">
-            <input type="password" id="input-token" placeholder="Вставьте ваш токен здесь...">
-            <button id="btn-save-token" class="btn-primary">Сохранить</button>
+
+          <!-- Logged Out State -->
+          <div id="account-logged-out-block">
+            <button id="btn-login-yandex-settings" class="btn-yandex-id" style="width: 100%; margin-bottom: 12px;">
+              <span class="yandex-letter">Я</span>
+              <span>Войти с Яндекс ID</span>
+            </button>
+            <div class="manual-token-toggle">
+              <button id="btn-toggle-manual-token" class="btn-link">Ввести токен вручную ▾</button>
+            </div>
+            <div id="manual-token-group" class="token-input-group hidden" style="margin-top: 10px;">
+              <input type="password" id="input-token" placeholder="Токен или ссылка с токеном...">
+              <button id="btn-save-token" class="btn-primary">OK</button>
+            </div>
           </div>
-          <button id="btn-help-token" class="btn-link">Как получить токен в 1 клик? ℹ️</button>
+
+          <!-- Logged In State -->
+          <div id="account-logged-in-block" class="hidden">
+            <div class="account-details-row">
+              <span class="badge-plus" id="badge-plus-status">Плюс Активен</span>
+              <button id="btn-logout" class="btn-logout">Выйти</button>
+            </div>
+          </div>
+
           <div id="token-status" class="token-status"></div>
         </div>
 
@@ -319,17 +341,47 @@
       </div>
     </div>
 
-    <!-- Token Help Dialog -->
-    <div id="modal-token-help" class="dialog-overlay hidden">
-      <div class="dialog-card">
-        <h3>Как получить Яндекс Токен:</h3>
-        <ol>
-          <li>Откройте <a href="https://music.yandex.ru" target="_blank">music.yandex.ru</a> в браузере со своим аккаунтом.</li>
-          <li>Откройте консоль (F12) ➔ вкладка Application (Приложение) ➔ Cookies.</li>
-          <li>Либо перейдите по ссылке авторизации Яндекс OAuth и скопируйте <code>access_token</code>.</li>
-        </ol>
-        <p class="text-secondary">Токен хранится исключительно локально в вашем браузере.</p>
-        <button id="btn-close-token-help" class="btn-primary" style="margin-top: 1rem; width: 100%;">Понятно</button>
+    <!-- Modern Yandex ID Auth Modal Dialog -->
+    <div id="modal-yandex-login" class="dialog-overlay hidden">
+      <div class="dialog-card auth-modal-card">
+        <div class="auth-modal-header">
+          <div class="yandex-logo-circle">
+            <span class="yandex-letter-large">Я</span>
+          </div>
+          <h3>Вход через Яндекс ID</h3>
+          <p class="text-secondary">Авторизация для доступа к вашей медиатеке</p>
+        </div>
+
+        <div class="auth-steps">
+          <div class="auth-step-item">
+            <div class="step-num">1</div>
+            <div class="step-content">
+              <p>Нажмите кнопку и подтвердите вход в аккаунт Яндекса:</p>
+              <button id="btn-open-yandex-oauth" class="btn-yandex-id btn-yandex-full">
+                <span class="yandex-letter">Я</span>
+                <span>Открыть Яндекс ID ↗</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="auth-step-item">
+            <div class="step-num">2</div>
+            <div class="step-content">
+              <p>Скопируйте полученную ссылку (или строку) и нажмите кнопку ниже:</p>
+              <button id="btn-paste-clipboard-token" class="btn-paste-clipboard">
+                <span>📋 Вставить автоматически</span>
+              </button>
+              <div class="manual-input-row" style="margin-top: 8px;">
+                <input type="text" id="input-modal-token" placeholder="Или вставьте ссылку / токен сюда...">
+                <button id="btn-submit-modal-token" class="btn-primary">OK</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="modal-token-status" class="token-status" style="margin-top: 10px;"></div>
+
+        <button id="btn-close-yandex-login" class="btn-secondary" style="margin-top: 16px; width: 100%;">Закрыть</button>
       </div>
     </div>
 

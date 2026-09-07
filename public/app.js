@@ -50,17 +50,33 @@
     likedTracksList: document.getElementById('liked-tracks-list'),
     likedCountText: document.getElementById('liked-count-text'),
     btnPlayLiked: document.getElementById('btn-play-liked'),
-    btnGotoSettings: document.getElementById('btn-goto-settings'),
+    btnLoginYandexLibrary: document.getElementById('btn-login-yandex-library'),
 
     // Settings View
+    cardAccount: document.getElementById('card-account'),
+    accountDisplayName: document.getElementById('account-display-name'),
+    accountSubStatus: document.getElementById('account-sub-status'),
+    accountLoggedOutBlock: document.getElementById('account-logged-out-block'),
+    accountLoggedInBlock: document.getElementById('account-logged-in-block'),
+    badgePlusStatus: document.getElementById('badge-plus-status'),
+    btnLogout: document.getElementById('btn-logout'),
+    btnLoginYandexSettings: document.getElementById('btn-login-yandex-settings'),
+    btnToggleManualToken: document.getElementById('btn-toggle-manual-token'),
+    manualTokenGroup: document.getElementById('manual-token-group'),
     inputToken: document.getElementById('input-token'),
     btnSaveToken: document.getElementById('btn-save-token'),
     tokenStatus: document.getElementById('token-status'),
-    btnHelpToken: document.getElementById('btn-help-token'),
-    modalTokenHelp: document.getElementById('modal-token-help'),
-    btnCloseTokenHelp: document.getElementById('btn-close-token-help'),
     libertyDbStatus: document.getElementById('liberty-db-status'),
     libertyDbCount: document.getElementById('liberty-db-count'),
+
+    // Modern Yandex ID Auth Modal
+    modalYandexLogin: document.getElementById('modal-yandex-login'),
+    btnOpenYandexOAuth: document.getElementById('btn-open-yandex-oauth'),
+    btnPasteClipboardToken: document.getElementById('btn-paste-clipboard-token'),
+    inputModalToken: document.getElementById('input-modal-token'),
+    btnSubmitModalToken: document.getElementById('btn-submit-modal-token'),
+    modalTokenStatus: document.getElementById('modal-token-status'),
+    btnCloseYandexLogin: document.getElementById('btn-close-yandex-login'),
 
     // Mini Player
     miniPlayer: document.getElementById('mini-player'),
@@ -647,48 +663,119 @@
     }
   }
 
-  async function verifyAndSaveToken(token) {
-    token = (token || '').trim();
+  function extractToken(raw) {
+    if (!raw) return '';
+    raw = String(raw).trim();
+    if (raw.includes('access_token=')) {
+      const match = raw.match(/access_token=([^&#\s]+)/);
+      if (match) return decodeURIComponent(match[1]);
+    }
+    return raw;
+  }
+
+  async function verifyAndSaveToken(rawToken) {
+    const token = extractToken(rawToken);
+
     if (!token) {
       localStorage.removeItem('ym_token');
       state.token = '';
+      state.user = null;
+      state.likedTracks = [];
+
       dom.tokenStatus.textContent = 'Токен удален';
       dom.tokenStatus.style.color = '#929298';
       dom.headerAvatar.textContent = '👤';
       dom.headerAvatar.style.background = '#2a2a2a';
       dom.headerAvatar.style.color = '#fff';
+
+      if (dom.accountDisplayName) dom.accountDisplayName.textContent = 'Яндекс Аккаунт';
+      if (dom.accountSubStatus) dom.accountSubStatus.textContent = 'Не выполнен вход';
+      if (dom.accountLoggedOutBlock) dom.accountLoggedOutBlock.classList.remove('hidden');
+      if (dom.accountLoggedInBlock) dom.accountLoggedInBlock.classList.add('hidden');
+      if (dom.inputToken) dom.inputToken.value = '';
+
+      renderLikedTracks([]);
       return;
     }
 
-    dom.tokenStatus.textContent = 'Проверка токена...';
-    dom.tokenStatus.style.color = '#fed42b';
+    if (dom.tokenStatus) {
+      dom.tokenStatus.textContent = 'Проверка Яндекс ID...';
+      dom.tokenStatus.style.color = '#fed42b';
+    }
+    if (dom.modalTokenStatus) {
+      dom.modalTokenStatus.textContent = 'Проверка аккаунта...';
+      dom.modalTokenStatus.style.color = '#fed42b';
+    }
 
     try {
       const res = await fetch(`/api/library?token=${encodeURIComponent(token)}`);
       const data = await res.json();
 
       if (!res.ok || data.error) {
-        dom.tokenStatus.textContent = `Ошибка: ${data.error || 'Недействительный токен'}`;
-        dom.tokenStatus.style.color = '#e63946';
+        const errMsg = data.error || 'Недействительный токен';
+        if (dom.tokenStatus) {
+          dom.tokenStatus.textContent = `Ошибка: ${errMsg}`;
+          dom.tokenStatus.style.color = '#e63946';
+        }
+        if (dom.modalTokenStatus) {
+          dom.modalTokenStatus.textContent = `Ошибка: ${errMsg}`;
+          dom.modalTokenStatus.style.color = '#e63946';
+        }
+        showToast(errMsg, true);
         return;
       }
 
       state.token = token;
       localStorage.setItem('ym_token', token);
       state.user = data.user;
+      state.likedTracks = data.tracks || [];
 
-      dom.tokenStatus.textContent = `✓ Успешно: ${data.user.fullName || data.user.login} (${data.user.hasPlus ? 'Плюс активен' : 'Без Плюса'})`;
-      dom.tokenStatus.style.color = '#48bb78';
-
-      dom.headerAvatar.textContent = (data.user.login || 'U')[0].toUpperCase();
+      // Update Header Avatar
+      const userInitial = (data.user.fullName || data.user.login || 'U')[0].toUpperCase();
+      dom.headerAvatar.textContent = userInitial;
       dom.headerAvatar.style.background = '#fed42b';
       dom.headerAvatar.style.color = '#000';
       dom.headerAvatar.style.fontWeight = '700';
 
-      showToast('Токен Яндекс сохранен!');
+      // Update Settings Account Card
+      if (dom.accountDisplayName) dom.accountDisplayName.textContent = data.user.fullName || data.user.login;
+      if (dom.accountSubStatus) dom.accountSubStatus.textContent = `@${data.user.login}`;
+      if (dom.badgePlusStatus) {
+        dom.badgePlusStatus.textContent = data.user.hasPlus ? 'Плюс Активен ✨' : 'Без Плюса';
+        dom.badgePlusStatus.style.background = data.user.hasPlus
+          ? 'linear-gradient(135deg, #7928ca, #ff0080)'
+          : 'rgba(255,255,255,0.15)';
+      }
+      if (dom.accountLoggedOutBlock) dom.accountLoggedOutBlock.classList.add('hidden');
+      if (dom.accountLoggedInBlock) dom.accountLoggedInBlock.classList.remove('hidden');
+
+      if (dom.tokenStatus) {
+        dom.tokenStatus.textContent = `✓ Вход выполнен: ${data.user.fullName || data.user.login}`;
+        dom.tokenStatus.style.color = '#48bb78';
+      }
+
+      if (dom.modalTokenStatus) {
+        dom.modalTokenStatus.textContent = '✓ Успешно! Добро пожаловать.';
+        dom.modalTokenStatus.style.color = '#48bb78';
+      }
+
+      // Close modal on success
+      setTimeout(() => {
+        if (dom.modalYandexLogin) dom.modalYandexLogin.classList.add('hidden');
+      }, 700);
+
+      renderLikedTracks(state.likedTracks);
+      showToast(`Добро пожаловать, ${data.user.fullName || data.user.login}!`);
     } catch (err) {
-      dom.tokenStatus.textContent = 'Ошибка сети при проверке токена';
-      dom.tokenStatus.style.color = '#e63946';
+      console.error('Verify token error:', err);
+      if (dom.tokenStatus) {
+        dom.tokenStatus.textContent = 'Ошибка сети при проверке токена';
+        dom.tokenStatus.style.color = '#e63946';
+      }
+      if (dom.modalTokenStatus) {
+        dom.modalTokenStatus.textContent = 'Ошибка сети при проверке токена';
+        dom.modalTokenStatus.style.color = '#e63946';
+      }
     }
   }
 
@@ -867,23 +954,106 @@
       });
     });
 
-    dom.btnSaveToken.addEventListener('click', () => {
-      verifyAndSaveToken(dom.inputToken.value);
-    });
+    // Settings manual token save
+    if (dom.btnSaveToken) {
+      dom.btnSaveToken.addEventListener('click', () => {
+        verifyAndSaveToken(dom.inputToken.value);
+      });
+    }
 
-    dom.btnHelpToken.addEventListener('click', () => {
-      dom.modalTokenHelp.classList.remove('hidden');
-    });
+    if (dom.btnToggleManualToken) {
+      dom.btnToggleManualToken.addEventListener('click', () => {
+        dom.manualTokenGroup.classList.toggle('hidden');
+      });
+    }
 
-    dom.btnCloseTokenHelp.addEventListener('click', () => {
-      dom.modalTokenHelp.classList.add('hidden');
-    });
+    // Logout
+    if (dom.btnLogout) {
+      dom.btnLogout.addEventListener('click', () => {
+        verifyAndSaveToken('');
+        showToast('Вы вышли из аккаунта');
+      });
+    }
 
-    dom.modalTokenHelp.addEventListener('click', (e) => {
-      if (e.target === dom.modalTokenHelp) {
-        dom.modalTokenHelp.classList.add('hidden');
-      }
-    });
+    // Open Yandex ID Modal buttons
+    if (dom.btnLoginYandexLibrary) {
+      dom.btnLoginYandexLibrary.addEventListener('click', () => {
+        dom.modalYandexLogin.classList.remove('hidden');
+      });
+    }
+
+    if (dom.btnLoginYandexSettings) {
+      dom.btnLoginYandexSettings.addEventListener('click', () => {
+        dom.modalYandexLogin.classList.remove('hidden');
+      });
+    }
+
+    // Close Yandex ID Modal
+    if (dom.btnCloseYandexLogin) {
+      dom.btnCloseYandexLogin.addEventListener('click', () => {
+        dom.modalYandexLogin.classList.add('hidden');
+      });
+    }
+
+    if (dom.modalYandexLogin) {
+      dom.modalYandexLogin.addEventListener('click', (e) => {
+        if (e.target === dom.modalYandexLogin) {
+          dom.modalYandexLogin.classList.add('hidden');
+        }
+      });
+    }
+
+    // Step 1: Open Official Yandex OAuth page in new window
+    if (dom.btnOpenYandexOAuth) {
+      dom.btnOpenYandexOAuth.addEventListener('click', () => {
+        const oauthUrl = 'https://oauth.yandex.ru/authorize?response_type=token&client_id=23cabbbdc6cd418abb4b9c082383f524';
+        window.open(oauthUrl, '_blank');
+        if (dom.modalTokenStatus) {
+          dom.modalTokenStatus.textContent = 'Окно Яндекса открыто. Нажмите «Разрешить», скопируйте ссылку и нажмите «Вставить автоматически» 👇';
+          dom.modalTokenStatus.style.color = '#fed42b';
+        }
+      });
+    }
+
+    // Step 2: Auto Paste from Clipboard
+    if (dom.btnPasteClipboardToken) {
+      dom.btnPasteClipboardToken.addEventListener('click', async () => {
+        try {
+          let text = '';
+          if (navigator.clipboard && navigator.clipboard.readText) {
+            text = await navigator.clipboard.readText();
+          }
+          if (!text && dom.inputModalToken.value) {
+            text = dom.inputModalToken.value;
+          }
+
+          const token = extractToken(text);
+          if (token && token.length > 5) {
+            await verifyAndSaveToken(token);
+          } else {
+            showToast('В буфере не найден токен или ссылка. Вставьте вручную в поле ниже', true);
+            dom.inputModalToken.focus();
+          }
+        } catch (err) {
+          console.warn('Clipboard read error:', err);
+          showToast('Вставьте скопированную ссылку в поле ввода', true);
+          dom.inputModalToken.focus();
+        }
+      });
+    }
+
+    // Step 2 (manual): Submit from modal input
+    if (dom.btnSubmitModalToken) {
+      dom.btnSubmitModalToken.addEventListener('click', () => {
+        const val = dom.inputModalToken.value;
+        const token = extractToken(val);
+        if (token) {
+          verifyAndSaveToken(token);
+        } else {
+          showToast('Пожалуйста, введите токен или ссылку', true);
+        }
+      });
+    }
   }
 
   function toggleLikeCurrentTrack() {
@@ -913,11 +1083,25 @@
     }
   }
 
+  function checkUrlForToken() {
+    if (window.location.hash && window.location.hash.includes('access_token=')) {
+      const token = extractToken(window.location.hash);
+      if (token) {
+        verifyAndSaveToken(token);
+        try {
+          history.replaceState(null, document.title, window.location.pathname + window.location.search);
+        } catch (e) {}
+      }
+    }
+  }
+
   function init() {
     dom.greetingText.textContent = getGreeting();
 
+    checkUrlForToken();
+
     if (state.token) {
-      dom.inputToken.value = state.token;
+      if (dom.inputToken) dom.inputToken.value = state.token;
       verifyAndSaveToken(state.token);
     }
 

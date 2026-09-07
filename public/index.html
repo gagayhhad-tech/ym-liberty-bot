@@ -349,49 +349,56 @@
           <div class="yandex-logo-circle">
             <span class="yandex-letter-large">Я</span>
           </div>
-          <h3>Вход через Яндекс ID</h3>
-          <p class="text-secondary">Для доступа к вашей медиатеке и синхронизации</p>
+          <h3>Войти с Яндекс ID</h3>
+          <p class="text-secondary">Безопасный вход через официальный сервис Яндекса</p>
         </div>
 
         <!-- Primary Flow: Official Device Code Flow -->
         <div id="auth-device-flow-block">
-          <p style="font-size: 13px; text-align: center; color: #ddd; margin-bottom: 6px;">
-            Скопируйте код и введите его на странице Яндекса:
+          <p style="font-size: 13px; text-align: center; color: #bbb; margin-bottom: 8px;">
+            Ваш одноразовый код для входа:
           </p>
 
-          <div class="device-code-box">
-            <div id="device-code-display" class="device-code-value">••••••••</div>
-            <div class="device-code-actions">
-              <button id="btn-copy-device-code" class="btn-code-copy" type="button">
-                <i class="bi bi-copy"></i>
-                <span id="btn-copy-code-text">Скопировать код</span>
-              </button>
-            </div>
+          <div class="device-code-box" id="device-code-box" style="cursor: pointer;" title="Нажмите чтобы скопировать">
+            <div id="device-code-display" class="device-code-value">— — — — — —</div>
+            <div id="device-code-hint" style="font-size: 11px; color: #999; margin-top: 4px;">нажмите чтобы скопировать</div>
           </div>
 
-          <a id="btn-open-yandex-device" href="https://ya.ru/device" target="_blank" class="btn-yandex-id btn-yandex-full" style="text-decoration: none; margin-top: 10px;">
-            <span class="yandex-letter">Я</span>
-            <span>Открыть ya.ru/device <i class="bi bi-box-arrow-up-right"></i></span>
-          </a>
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px;">
+            <button id="btn-copy-device-code" class="btn-code-copy btn-code-copy-big" type="button">
+              <i class="bi bi-copy"></i>
+              <span id="btn-copy-code-text">Скопировать код</span>
+            </button>
+            <a id="btn-open-yandex-device" href="https://ya.ru/device" target="_blank" class="btn-yandex-id btn-yandex-full" style="text-decoration: none;">
+              <span class="yandex-letter">Я</span>
+              <span>Открыть ya.ru/device <i class="bi bi-box-arrow-up-right"></i></span>
+            </a>
+          </div>
 
-          <div id="device-poll-indicator" class="device-poll-status">
+          <div id="device-poll-indicator" class="device-poll-status" style="margin-top: 10px;">
             <div class="poll-dot"></div>
-            <span id="device-poll-text">Ожидание подтверждения на ya.ru/device...</span>
+            <span id="device-poll-text">Получение кода...</span>
+          </div>
+
+          <div style="font-size: 11px; color: #888; text-align: center; margin-top: 8px; line-height: 1.5;">
+            1. Скопируйте код выше<br>
+            2. Откройте ya.ru/device<br>
+            3. Вставьте код и нажмите «Разрешить»
           </div>
         </div>
 
         <!-- Alternative Methods Accordion -->
         <div class="auth-alt-accordion">
           <button id="btn-toggle-alt-methods" class="btn-toggle-alt" type="button">
-            <span>Или войти другим способом</span> <i class="bi bi-chevron-down" id="icon-toggle-alt"></i>
+            <span>Войти через токен вручную</span> <i class="bi bi-chevron-down" id="icon-toggle-alt"></i>
           </button>
           
           <div id="auth-alt-content" class="auth-alt-content hidden">
             <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">
-              Вставьте токен (<code style="color:#fed42b">y0_...</code>) или данные из Desktop Мода («Скопировать данные авторизации»):
+              Вставьте токен (<code style="color:#fed42b">y0_...</code>) или JSON из «Скопировать данные авторизации» в настройках Desktop Мода:
             </p>
             <div class="manual-input-row">
-              <input type="text" id="input-modal-token" placeholder="Токен или JSON из настроек мода...">
+              <input type="text" id="input-modal-token" placeholder="y0_AgAAAA... или {&quot;accessToken&quot;:...}">
               <button id="btn-submit-modal-token" class="btn-primary" type="button">OK</button>
             </div>
             <button id="btn-paste-clipboard-token" class="btn-paste-clipboard" type="button">
@@ -412,6 +419,6 @@
 
   </div>
 
-  <script src="/app.js?v=5"></script>
+  <script src="/app.js?v=6"></script>
 </body>
 </html>

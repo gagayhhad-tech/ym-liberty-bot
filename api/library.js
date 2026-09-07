@@ -34,29 +34,53 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  const token = req.headers?.authorization || req.query?.token;
+  let token = req.headers?.authorization || req.query?.token || "";
+  token = token.trim();
+
   if (!token) {
     return res.status(401).json({ error: "Authorization token required" });
   }
 
-  const authHeader = token.startsWith("OAuth") ? token : `OAuth ${token}`;
+  // Strip "OAuth " / "Bearer " prefix if already present, then rebuild cleanly
+  const rawToken = token.replace(/^OAuth\s+/i, "").replace(/^Bearer\s+/i, "").trim();
+
+  if (!rawToken || rawToken.length < 8) {
+    return res.status(401).json({ error: "Токен слишком короткий или недействительный" });
+  }
+
+  const authHeader = `OAuth ${rawToken}`;
   const headers = {
     Authorization: authHeader,
-    "User-Agent": "YandexMusic/5.117.1 (Windows)",
+    "User-Agent": "com.yandex.music/5.117 (Android 13; samsung SM-G998B)",
+    "X-Yandex-Music-Client": "YandexMusicAndroid/24023621",
+    "Accept": "application/json",
+    "Accept-Language": "ru",
   };
 
   try {
     // 1. Get user status & UID
     const statusRes = await axios.get("https://api.music.yandex.net/account/status", {
       headers,
-      timeout: 8000,
+      timeout: 10000,
     });
+
+    console.log("Status response code:", statusRes.status);
+    console.log("Status response result keys:", Object.keys(statusRes.data?.result || {}));
+
     const account = statusRes.data?.result?.account || {};
     const uid = account.uid;
     const hasPlus = Boolean(statusRes.data?.result?.plus?.hasPlus);
 
     if (!uid) {
-      return res.status(401).json({ error: "Invalid token or account not found" });
+      console.error("No uid in account response:", JSON.stringify(statusRes.data?.result || {}));
+      return res.status(401).json({
+        error: "Аккаунт не найден. Проверьте токен — он должен быть в формате y0_... или OAuth y0_...",
+        debug: {
+          status: statusRes.status,
+          resultKeys: Object.keys(statusRes.data?.result || {}),
+          accountKeys: Object.keys(account),
+        }
+      });
     }
 
     // 2. Get liked tracks
@@ -119,14 +143,21 @@ module.exports = async (req, res) => {
       tracks,
     });
   } catch (err) {
-    console.error("Library fetch error:", err.message);
-    const status = err.response?.status === 401 || err.response?.status === 403 ? 401 : 500;
-    const msg = status === 401
-      ? "Недействительный токен Яндекс ID. Пожалуйста, выполните вход через код подтверждения."
-      : "Не удалось загрузить данные аккаунта";
-    return res.status(status).json({
-      error: msg,
-      details: err.response?.data || err.message,
+    const errStatus = err.response?.status;
+    const errData = err.response?.data;
+    console.error("Library fetch error:", err.message, "| HTTP status:", errStatus, "| body:", JSON.stringify(errData));
+
+    if (errStatus === 401 || errStatus === 403) {
+      return res.status(401).json({
+        error: "Токен недействителен или истёк. Выполните вход заново.",
+        details: errData,
+      });
+    }
+
+    return res.status(500).json({
+      error: "Не удалось получить данные аккаунта. Попробуйте позже.",
+      details: err.message,
+      httpStatus: errStatus,
     });
   }
 };

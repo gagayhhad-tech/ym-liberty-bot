@@ -743,12 +743,16 @@
       }
 
       currentDeviceCode = data.device_code;
-      const userCode = (data.user_code || '').toUpperCase();
+      const rawCode = (data.user_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      // Format as XXXX-XXXX if 8 chars, otherwise as-is
+      const userCode = rawCode.length === 8
+        ? rawCode.slice(0, 4) + '-' + rawCode.slice(4)
+        : rawCode;
       const verificationUrl = data.verification_url || 'https://ya.ru/device';
 
       dom.deviceCodeDisplay.textContent = userCode;
       if (dom.devicePollText) {
-        dom.devicePollText.textContent = 'Ожидание подтверждения на ' + verificationUrl.replace('https://', '') + '...';
+        dom.devicePollText.textContent = 'Ожидание подтверждения... (код действителен 5 минут)';
         dom.devicePollText.style.color = 'var(--text-secondary)';
       }
 
@@ -1152,37 +1156,53 @@
       });
     }
 
+    // Device Code Flow: Click anywhere on code box to copy
+    const deviceCodeBox = document.getElementById('device-code-box');
+    if (deviceCodeBox) {
+      deviceCodeBox.addEventListener('click', () => {
+        dom.btnCopyDeviceCode?.click();
+      });
+    }
+
     // Device Code Flow: Copy Code Button
     if (dom.btnCopyDeviceCode) {
-      dom.btnCopyDeviceCode.addEventListener('click', () => {
-        const code = dom.deviceCodeDisplay ? dom.deviceCodeDisplay.textContent.trim() : '';
-        if (code && code !== '••••••••' && code !== 'ОШИБКА') {
+      dom.btnCopyDeviceCode.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const displayCode = dom.deviceCodeDisplay ? dom.deviceCodeDisplay.textContent.trim() : '';
+        // Strip dash for clipboard — ya.ru/device accepts both, but safer without
+        const rawCode = displayCode.replace(/-/g, '');
+        if (rawCode && rawCode !== '••••••••' && rawCode !== 'ОШИБКА' && rawCode !== '——————') {
+          const codeToCopy = rawCode;
+          const hint = document.getElementById('device-code-hint');
           if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(code).then(() => {
+            navigator.clipboard.writeText(codeToCopy).then(() => {
               if (dom.btnCopyCodeText) dom.btnCopyCodeText.textContent = '✓ Скопировано!';
-              showToast(`Код ${code} скопирован в буфер`);
+              if (hint) hint.textContent = '✓ код скопирован в буфер';
+              showToast(`Код скопирован: ${displayCode}`);
               setTimeout(() => {
                 if (dom.btnCopyCodeText) dom.btnCopyCodeText.textContent = 'Скопировать код';
+                if (hint) hint.textContent = 'нажмите чтобы скопировать';
               }, 2500);
             }).catch(() => {
-              showToast(`Код: ${code}`);
+              showToast(`Ваш код: ${displayCode}`, false);
             });
           } else {
-            showToast(`Код: ${code}`);
+            showToast(`Ваш код: ${displayCode}`, false);
           }
         }
       });
     }
 
-    // Device Code Flow: Open ya.ru/device Link
+    // Device Code Flow: Open ya.ru/device Link (also copy code)
     if (dom.btnOpenYandexDevice) {
-      dom.btnOpenYandexDevice.addEventListener('click', () => {
-        const code = dom.deviceCodeDisplay ? dom.deviceCodeDisplay.textContent.trim() : '';
-        if (code && code !== '••••••••' && code !== 'ОШИБКА') {
+      dom.btnOpenYandexDevice.addEventListener('click', (e) => {
+        const displayCode = dom.deviceCodeDisplay ? dom.deviceCodeDisplay.textContent.trim() : '';
+        const rawCode = displayCode.replace(/-/g, '');
+        if (rawCode && rawCode !== '——————' && rawCode !== 'ОШИБКА') {
           if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(code).catch(() => {});
+            navigator.clipboard.writeText(rawCode).catch(() => {});
           }
-          showToast(`Код ${code} скопирован! Вставьте его на открывшейся странице`);
+          showToast(`Код скопирован: ${displayCode} — вставьте на странице Яндекса`);
         }
       });
     }

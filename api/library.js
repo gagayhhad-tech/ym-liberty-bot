@@ -54,14 +54,12 @@ module.exports = async (req, res) => {
     "User-Agent": "com.yandex.music/5.117 (Android 13; samsung SM-G998B)",
     "X-Yandex-Music-Client": "YandexMusicAndroid/24023621",
     "Accept": "application/json",
-    "Accept-Language": "ru",
-    "X-Forwarded-For": "81.19.73.1",
-    "X-Real-IP": "81.19.73.1"
+    "Accept-Language": "ru"
   };
 
   try {
-    // 1. Get user status & UID
-    const statusRes = await axios.get("https://api.music.yandex.ru/account/status", {
+    const proxyBase = "https://ym-proxy.gagayhhad.workers.dev/?url=";
+    const statusRes = await axios.get(proxyBase + encodeURIComponent("https://api.music.yandex.ru/account/status"), {
       headers,
       timeout: 10000,
     });
@@ -87,7 +85,7 @@ module.exports = async (req, res) => {
 
     // 2. Get liked tracks
     const [likesRes, libertyTracks] = await Promise.all([
-      axios.get(`https://api.music.yandex.ru/users/${uid}/likes/tracks`, {
+      axios.get(proxyBase + encodeURIComponent(`https://api.music.yandex.ru/users/${uid}/likes/tracks`), {
         headers,
         timeout: 8000,
       }),
@@ -100,7 +98,7 @@ module.exports = async (req, res) => {
     let tracks = [];
     if (trackIds.length > 0) {
       const tracksRes = await axios.post(
-        "https://api.music.yandex.ru/tracks",
+        proxyBase + encodeURIComponent("https://api.music.yandex.ru/tracks"),
         new URLSearchParams({ "track-ids": trackIds.join(",") }).toString(),
         {
           headers: {

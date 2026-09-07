@@ -352,25 +352,19 @@
           <h3>Войти с Яндекс ID</h3>
         </div>
 
-        <!-- Method 1: Browser console (fastest, recommended) -->
+        <!-- Method 1: Yandex Music Token Generator (Recommended) -->
         <div class="auth-method-block auth-method-recommended">
           <div class="auth-method-title">
-            <i class="bi bi-terminal-fill"></i>
-            Способ 1 — Через браузер <span class="auth-badge-rec">Рекомендуется</span>
+            <i class="bi bi-key-fill"></i>
+            Способ 1 — Генератор токенов <span class="auth-badge-rec">Рекомендуется</span>
           </div>
           <ol class="auth-steps">
-            <li>Откройте <a href="https://music.yandex.ru" target="_blank" class="auth-link">music.yandex.ru</a> и войдите в аккаунт</li>
-            <li>Нажмите <kbd>F12</kbd> → вкладка <strong>Console</strong></li>
-            <li>Вставьте команду и нажмите Enter:</li>
+            <li>Перейдите на <a href="https://ym-token.marshal.dev/" target="_blank" class="auth-link">ym-token.marshal.dev <i class="bi bi-box-arrow-up-right" style="font-size: 10px;"></i></a></li>
+            <li>Авторизуйтесь в Яндексе (это безопасно, код open-source)</li>
+            <li>Скопируйте полученный токен (начинается с <code>y0_AgAAAA...</code>)</li>
+            <li>Вставьте токен ниже:</li>
           </ol>
-          <div class="auth-console-block" id="console-snippet-block" title="Нажмите чтобы скопировать">
-            <code id="console-snippet">copy(JSON.parse(localStorage.oauth).value)</code>
-            <button class="auth-copy-snippet" id="btn-copy-snippet" type="button" title="Скопировать команду">
-              <i class="bi bi-copy"></i>
-            </button>
-          </div>
-          <p class="auth-step-hint">Токен будет скопирован автоматически — вставьте его ниже:</p>
-          <div class="manual-input-row">
+          <div class="manual-input-row" style="margin-top: 10px;">
             <input type="text" id="input-modal-token" placeholder="y0_AgAAAA..." autocomplete="off">
             <button id="btn-submit-modal-token" class="btn-primary" type="button">Войти</button>
           </div>
@@ -404,6 +398,6 @@
 
   </div>
 
-  <script src="/app.js?v=7"></script>
+  <script src="/app.js?v=8"></script>
 </body>
 </html>

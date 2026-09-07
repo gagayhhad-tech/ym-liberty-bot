@@ -5,5 +5,5 @@ meta:
     version: 18
 run:
   persistenceMount: /data
-  containerPort: 80
+  containerPort: 3000
   command: npm start

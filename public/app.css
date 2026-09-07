@@ -1379,6 +1379,111 @@ body {
   gap: 8px;
 }
 
+/* New 3-method auth styles */
+.auth-method-block {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-top: 10px;
+}
+
+.auth-method-recommended {
+  border-color: rgba(254, 212, 43, 0.3);
+  background: rgba(254, 212, 43, 0.05);
+}
+
+.auth-method-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.auth-badge-rec {
+  font-size: 10px;
+  font-weight: 700;
+  background: #fed42b;
+  color: #000;
+  padding: 2px 7px;
+  border-radius: 20px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.auth-steps {
+  margin: 0 0 10px 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+.auth-steps li {
+  margin-bottom: 2px;
+}
+
+.auth-steps kbd {
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-family: monospace;
+  font-size: 11px;
+  color: #fff;
+}
+
+.auth-link {
+  color: #fed42b;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.auth-console-block {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.auth-console-block code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  color: #a8ff78;
+  user-select: all;
+  word-break: break-all;
+}
+
+.auth-copy-snippet {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.5);
+  cursor: pointer;
+  font-size: 14px;
+  flex-shrink: 0;
+  padding: 2px 4px;
+  transition: color 0.2s;
+}
+
+.auth-copy-snippet:hover {
+  color: #fff;
+}
+
+.auth-step-hint {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin: 0 0 6px 0;
+}
+
 .hidden {
   display: none !important;
 }

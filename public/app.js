@@ -69,20 +69,14 @@
     libertyDbStatus: document.getElementById('liberty-db-status'),
     libertyDbCount: document.getElementById('liberty-db-count'),
 
-    // Modern Yandex ID Auth Modal (Device Flow & Fallbacks)
+    // Auth Modal
     modalYandexLogin: document.getElementById('modal-yandex-login'),
-    deviceCodeDisplay: document.getElementById('device-code-display'),
-    btnCopyDeviceCode: document.getElementById('btn-copy-device-code'),
-    btnCopyCodeText: document.getElementById('btn-copy-code-text'),
-    btnOpenYandexDevice: document.getElementById('btn-open-yandex-device'),
-    devicePollIndicator: document.getElementById('device-poll-indicator'),
-    devicePollText: document.getElementById('device-poll-text'),
-    btnToggleAltMethods: document.getElementById('btn-toggle-alt-methods'),
-    iconToggleAlt: document.getElementById('icon-toggle-alt'),
-    authAltContent: document.getElementById('auth-alt-content'),
     inputModalToken: document.getElementById('input-modal-token'),
     btnSubmitModalToken: document.getElementById('btn-submit-modal-token'),
     btnPasteClipboardToken: document.getElementById('btn-paste-clipboard-token'),
+    btnCopySnippet: document.getElementById('btn-copy-snippet'),
+    consoleSnippetBlock: document.getElementById('console-snippet-block'),
+    consoleSnippet: document.getElementById('console-snippet'),
     modalTokenStatus: document.getElementById('modal-token-status'),
     btnCloseYandexLogin: document.getElementById('btn-close-yandex-login'),
 
@@ -714,114 +708,16 @@
     return raw;
   }
 
-  let devicePollTimer = null;
-  let currentDeviceCode = null;
-
-  async function startDeviceAuth() {
-    stopDeviceAuth();
-    if (!dom.deviceCodeDisplay) return;
-
-    dom.deviceCodeDisplay.textContent = '••••••••';
-    if (dom.devicePollText) {
-      dom.devicePollText.textContent = 'Получение кода входа...';
-      dom.devicePollText.style.color = 'var(--text-secondary)';
-    }
-    if (dom.btnCopyCodeText) dom.btnCopyCodeText.textContent = 'Скопировать код';
-    if (dom.modalTokenStatus) dom.modalTokenStatus.textContent = '';
-
-    try {
-      const res = await fetch('/api/auth?action=code');
-      const data = await res.json();
-
-      if (!res.ok || !data.device_code) {
-        dom.deviceCodeDisplay.textContent = 'ОШИБКА';
-        if (dom.devicePollText) {
-          dom.devicePollText.textContent = 'Не удалось получить код с сервера';
-          dom.devicePollText.style.color = '#e63946';
-        }
-        return;
-      }
-
-      currentDeviceCode = data.device_code;
-      const rawCode = (data.user_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-      // Format as XXXX-XXXX if 8 chars, otherwise as-is
-      const userCode = rawCode.length === 8
-        ? rawCode.slice(0, 4) + '-' + rawCode.slice(4)
-        : rawCode;
-      const verificationUrl = data.verification_url || 'https://ya.ru/device';
-
-      dom.deviceCodeDisplay.textContent = userCode;
-      if (dom.devicePollText) {
-        dom.devicePollText.textContent = 'Ожидание подтверждения... (код действителен 5 минут)';
-        dom.devicePollText.style.color = 'var(--text-secondary)';
-      }
-
-      if (dom.btnOpenYandexDevice) {
-        dom.btnOpenYandexDevice.href = verificationUrl;
-      }
-
-      const intervalSec = Math.max(3, data.interval || 5);
-      const expiresAt = Date.now() + (data.expires_in || 300) * 1000;
-
-      devicePollTimer = setInterval(async () => {
-        if (Date.now() > expiresAt) {
-          stopDeviceAuth();
-          if (dom.devicePollText) {
-            dom.devicePollText.textContent = 'Время действия кода истекло. Откройте окно снова.';
-            dom.devicePollText.style.color = '#e63946';
-          }
-          return;
-        }
-
-        try {
-          const pollRes = await fetch(`/api/auth?action=poll&device_code=${encodeURIComponent(currentDeviceCode)}`);
-          const pollData = await pollRes.json();
-
-          if (pollData.status === 'success' && pollData.access_token) {
-            stopDeviceAuth();
-            if (dom.devicePollText) {
-              dom.devicePollText.textContent = '✓ Вход подтвержден!';
-              dom.devicePollText.style.color = '#48bb78';
-            }
-            await verifyAndSaveToken(pollData.access_token);
-          } else if (pollData.status === 'error') {
-            stopDeviceAuth();
-            if (dom.devicePollText) {
-              dom.devicePollText.textContent = `Ошибка: ${pollData.error_description || pollData.error}`;
-              dom.devicePollText.style.color = '#e63946';
-            }
-          }
-        } catch (e) {
-          console.warn('Device poll error:', e);
-        }
-      }, intervalSec * 1000);
-    } catch (err) {
-      console.error('startDeviceAuth error:', err);
-      dom.deviceCodeDisplay.textContent = 'ОШИБКА';
-      if (dom.devicePollText) {
-        dom.devicePollText.textContent = 'Проверьте соединение с интернетом';
-        dom.devicePollText.style.color = '#e63946';
-      }
-    }
-  }
-
-  function stopDeviceAuth() {
-    if (devicePollTimer) {
-      clearInterval(devicePollTimer);
-      devicePollTimer = null;
-    }
-  }
-
   function openYandexLoginModal() {
     if (!dom.modalYandexLogin) return;
     dom.modalYandexLogin.classList.remove('hidden');
-    startDeviceAuth();
+    if (dom.modalTokenStatus) dom.modalTokenStatus.textContent = '';
+    if (dom.inputModalToken) dom.inputModalToken.value = '';
   }
 
   function closeYandexLoginModal() {
     if (!dom.modalYandexLogin) return;
     dom.modalYandexLogin.classList.add('hidden');
-    stopDeviceAuth();
   }
 
   async function verifyAndSaveToken(rawToken) {
@@ -916,7 +812,6 @@
       }
 
       // Close modal on success
-      stopDeviceAuth();
       setTimeout(() => {
         if (dom.modalYandexLogin) dom.modalYandexLogin.classList.add('hidden');
       }, 700);
@@ -1164,60 +1059,27 @@
       });
     }
 
-    // Device Code Flow: Copy Code Button
-    if (dom.btnCopyDeviceCode) {
-      dom.btnCopyDeviceCode.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const displayCode = dom.deviceCodeDisplay ? dom.deviceCodeDisplay.textContent.trim() : '';
-        // Strip dash for clipboard — ya.ru/device accepts both, but safer without
-        const rawCode = displayCode.replace(/-/g, '');
-        if (rawCode && rawCode !== '••••••••' && rawCode !== 'ОШИБКА' && rawCode !== '——————') {
-          const codeToCopy = rawCode;
-          const hint = document.getElementById('device-code-hint');
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(codeToCopy).then(() => {
-              if (dom.btnCopyCodeText) dom.btnCopyCodeText.textContent = '✓ Скопировано!';
-              if (hint) hint.textContent = '✓ код скопирован в буфер';
-              showToast(`Код скопирован: ${displayCode}`);
-              setTimeout(() => {
-                if (dom.btnCopyCodeText) dom.btnCopyCodeText.textContent = 'Скопировать код';
-                if (hint) hint.textContent = 'нажмите чтобы скопировать';
-              }, 2500);
-            }).catch(() => {
-              showToast(`Ваш код: ${displayCode}`, false);
-            });
-          } else {
-            showToast(`Ваш код: ${displayCode}`, false);
-          }
-        }
-      });
+    // Copy console snippet button & block click
+    const snippetCopy = (btnEl) => {
+      const snippet = dom.consoleSnippet ? dom.consoleSnippet.textContent : 'copy(JSON.parse(localStorage.oauth).value)';
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(snippet).then(() => {
+          if (btnEl) { const orig = btnEl.innerHTML; btnEl.innerHTML = '<i class="bi bi-check-lg"></i>'; setTimeout(() => { btnEl.innerHTML = orig; }, 2000); }
+          showToast('Команда скопирована! Вставьте в Console на music.yandex.ru');
+        }).catch(() => showToast(`Команда: ${snippet}`));
+      } else {
+        showToast(`Команда: ${snippet}`);
+      }
+    };
+
+    if (dom.btnCopySnippet) {
+      dom.btnCopySnippet.addEventListener('click', (e) => { e.stopPropagation(); snippetCopy(dom.btnCopySnippet); });
+    }
+    if (dom.consoleSnippetBlock) {
+      dom.consoleSnippetBlock.addEventListener('click', () => snippetCopy(dom.btnCopySnippet));
     }
 
-    // Device Code Flow: Open ya.ru/device Link (also copy code)
-    if (dom.btnOpenYandexDevice) {
-      dom.btnOpenYandexDevice.addEventListener('click', (e) => {
-        const displayCode = dom.deviceCodeDisplay ? dom.deviceCodeDisplay.textContent.trim() : '';
-        const rawCode = displayCode.replace(/-/g, '');
-        if (rawCode && rawCode !== '——————' && rawCode !== 'ОШИБКА') {
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(rawCode).catch(() => {});
-          }
-          showToast(`Код скопирован: ${displayCode} — вставьте на странице Яндекса`);
-        }
-      });
-    }
-
-    // Toggle Alternative Login Methods
-    if (dom.btnToggleAltMethods && dom.authAltContent) {
-      dom.btnToggleAltMethods.addEventListener('click', () => {
-        const isHidden = dom.authAltContent.classList.toggle('hidden');
-        if (dom.iconToggleAlt) {
-          dom.iconToggleAlt.className = isHidden ? 'bi bi-chevron-down' : 'bi bi-chevron-up';
-        }
-      });
-    }
-
-    // Paste from Clipboard (Mod JSON or token)
+    // Paste from Clipboard (raw token or Desktop Mod JSON)
     if (dom.btnPasteClipboardToken) {
       dom.btnPasteClipboardToken.addEventListener('click', async () => {
         try {
@@ -1231,29 +1093,37 @@
 
           const token = extractToken(text);
           if (token && token.length > 5) {
+            if (dom.inputModalToken) dom.inputModalToken.value = token;
             await verifyAndSaveToken(token);
           } else if (token !== null) {
-            showToast('В буфере не найден токен или JSON. Скопируйте данные из мода', true);
+            showToast('В буфере не найден токен. Скопируйте команду выше, выполните её на music.yandex.ru и вставьте результат', true);
             dom.inputModalToken?.focus();
           }
         } catch (err) {
           console.warn('Clipboard read error:', err);
-          showToast('Вставьте скопированный токен в поле ввода', true);
+          showToast('Вставьте токен в поле ввода вручную', true);
           dom.inputModalToken?.focus();
         }
       });
     }
 
-    // Submit from modal input
+    // Submit token from input field
     if (dom.btnSubmitModalToken) {
       dom.btnSubmitModalToken.addEventListener('click', () => {
-        const val = dom.inputModalToken ? dom.inputModalToken.value : '';
+        const val = dom.inputModalToken ? dom.inputModalToken.value.trim() : '';
         const token = extractToken(val);
         if (token && token.length > 5) {
           verifyAndSaveToken(token);
         } else if (token !== null) {
-          showToast('Пожалуйста, введите токен или данные авторизации', true);
+          showToast('Введите токен (y0_...) или JSON из Desktop Мода', true);
         }
+      });
+    }
+
+    // Submit on Enter key in token input
+    if (dom.inputModalToken) {
+      dom.inputModalToken.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') dom.btnSubmitModalToken?.click();
       });
     }
   }

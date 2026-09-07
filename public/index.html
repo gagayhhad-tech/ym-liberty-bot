@@ -342,7 +342,7 @@
       </div>
     </div>
 
-    <!-- Modern Yandex ID Auth Modal Dialog (Device Flow) -->
+    <!-- Auth Modal (3 methods) -->
     <div id="modal-yandex-login" class="dialog-overlay hidden">
       <div class="dialog-card auth-modal-card">
         <div class="auth-modal-header">
@@ -350,67 +350,52 @@
             <span class="yandex-letter-large">Я</span>
           </div>
           <h3>Войти с Яндекс ID</h3>
-          <p class="text-secondary">Безопасный вход через официальный сервис Яндекса</p>
         </div>
 
-        <!-- Primary Flow: Official Device Code Flow -->
-        <div id="auth-device-flow-block">
-          <p style="font-size: 13px; text-align: center; color: #bbb; margin-bottom: 8px;">
-            Ваш одноразовый код для входа:
-          </p>
-
-          <div class="device-code-box" id="device-code-box" style="cursor: pointer;" title="Нажмите чтобы скопировать">
-            <div id="device-code-display" class="device-code-value">— — — — — —</div>
-            <div id="device-code-hint" style="font-size: 11px; color: #999; margin-top: 4px;">нажмите чтобы скопировать</div>
+        <!-- Method 1: Browser console (fastest, recommended) -->
+        <div class="auth-method-block auth-method-recommended">
+          <div class="auth-method-title">
+            <i class="bi bi-terminal-fill"></i>
+            Способ 1 — Через браузер <span class="auth-badge-rec">Рекомендуется</span>
           </div>
-
-          <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px;">
-            <button id="btn-copy-device-code" class="btn-code-copy btn-code-copy-big" type="button">
+          <ol class="auth-steps">
+            <li>Откройте <a href="https://music.yandex.ru" target="_blank" class="auth-link">music.yandex.ru</a> и войдите в аккаунт</li>
+            <li>Нажмите <kbd>F12</kbd> → вкладка <strong>Console</strong></li>
+            <li>Вставьте команду и нажмите Enter:</li>
+          </ol>
+          <div class="auth-console-block" id="console-snippet-block" title="Нажмите чтобы скопировать">
+            <code id="console-snippet">copy(JSON.parse(localStorage.oauth).value)</code>
+            <button class="auth-copy-snippet" id="btn-copy-snippet" type="button" title="Скопировать команду">
               <i class="bi bi-copy"></i>
-              <span id="btn-copy-code-text">Скопировать код</span>
             </button>
-            <a id="btn-open-yandex-device" href="https://ya.ru/device" target="_blank" class="btn-yandex-id btn-yandex-full" style="text-decoration: none;">
-              <span class="yandex-letter">Я</span>
-              <span>Открыть ya.ru/device <i class="bi bi-box-arrow-up-right"></i></span>
-            </a>
           </div>
-
-          <div id="device-poll-indicator" class="device-poll-status" style="margin-top: 10px;">
-            <div class="poll-dot"></div>
-            <span id="device-poll-text">Получение кода...</span>
+          <p class="auth-step-hint">Токен будет скопирован автоматически — вставьте его ниже:</p>
+          <div class="manual-input-row">
+            <input type="text" id="input-modal-token" placeholder="y0_AgAAAA..." autocomplete="off">
+            <button id="btn-submit-modal-token" class="btn-primary" type="button">Войти</button>
           </div>
-
-          <div style="font-size: 11px; color: #888; text-align: center; margin-top: 8px; line-height: 1.5;">
-            1. Скопируйте код выше<br>
-            2. Откройте ya.ru/device<br>
-            3. Вставьте код и нажмите «Разрешить»
-          </div>
-        </div>
-
-        <!-- Alternative Methods Accordion -->
-        <div class="auth-alt-accordion">
-          <button id="btn-toggle-alt-methods" class="btn-toggle-alt" type="button">
-            <span>Войти через токен вручную</span> <i class="bi bi-chevron-down" id="icon-toggle-alt"></i>
+          <button id="btn-paste-clipboard-token" class="btn-paste-clipboard" type="button">
+            <i class="bi bi-clipboard-check"></i>
+            <span>Вставить из буфера обмена</span>
           </button>
-          
-          <div id="auth-alt-content" class="auth-alt-content hidden">
-            <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">
-              Вставьте токен (<code style="color:#fed42b">y0_...</code>) или JSON из «Скопировать данные авторизации» в настройках Desktop Мода:
-            </p>
-            <div class="manual-input-row">
-              <input type="text" id="input-modal-token" placeholder="y0_AgAAAA... или {&quot;accessToken&quot;:...}">
-              <button id="btn-submit-modal-token" class="btn-primary" type="button">OK</button>
-            </div>
-            <button id="btn-paste-clipboard-token" class="btn-paste-clipboard" type="button">
-              <i class="bi bi-clipboard-check"></i>
-              <span>Вставить из буфера обмена</span>
-            </button>
-          </div>
         </div>
 
-        <div id="modal-token-status" class="token-status" style="margin-top: 10px;"></div>
+        <!-- Method 2: Desktop Mod -->
+        <div class="auth-method-block">
+          <div class="auth-method-title">
+            <i class="bi bi-pc-display"></i>
+            Способ 2 — Desktop Мод
+          </div>
+          <ol class="auth-steps">
+            <li>Откройте Desktop Мод → Настройки → Аккаунт</li>
+            <li>Нажмите <strong>«Скопировать данные авторизации»</strong></li>
+            <li>Вставьте скопированный JSON в поле выше</li>
+          </ol>
+        </div>
 
-        <button id="btn-close-yandex-login" class="btn-secondary" style="margin-top: 14px; width: 100%;" type="button">Закрыть</button>
+        <div id="modal-token-status" class="token-status" style="margin-top: 8px;"></div>
+
+        <button id="btn-close-yandex-login" class="btn-secondary" style="margin-top: 12px; width: 100%;" type="button">Закрыть</button>
       </div>
     </div>
 
@@ -419,6 +404,6 @@
 
   </div>
 
-  <script src="/app.js?v=6"></script>
+  <script src="/app.js?v=7"></script>
 </body>
 </html>

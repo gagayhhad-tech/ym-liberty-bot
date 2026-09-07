@@ -51,7 +51,7 @@ module.exports = async (req, res) => {
     }
 
     const [ymRes, libertyTracks] = await Promise.all([
-      axios.get(`https://api.music.yandex.net/search`, {
+      axios.get(`https://api.music.yandex.ru/search`, {
         params: { text: query, type: "track", page },
         headers,
         timeout: 8000,

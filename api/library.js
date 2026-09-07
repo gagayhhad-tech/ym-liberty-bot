@@ -59,7 +59,7 @@ module.exports = async (req, res) => {
 
   try {
     // 1. Get user status & UID
-    const statusRes = await axios.get("https://api.music.yandex.net/account/status", {
+    const statusRes = await axios.get("https://api.music.yandex.ru/account/status", {
       headers,
       timeout: 10000,
     });
@@ -85,7 +85,7 @@ module.exports = async (req, res) => {
 
     // 2. Get liked tracks
     const [likesRes, libertyTracks] = await Promise.all([
-      axios.get(`https://api.music.yandex.net/users/${uid}/likes/tracks`, {
+      axios.get(`https://api.music.yandex.ru/users/${uid}/likes/tracks`, {
         headers,
         timeout: 8000,
       }),
@@ -98,7 +98,7 @@ module.exports = async (req, res) => {
     let tracks = [];
     if (trackIds.length > 0) {
       const tracksRes = await axios.post(
-        "https://api.music.yandex.net/tracks",
+        "https://api.music.yandex.ru/tracks",
         new URLSearchParams({ "track-ids": trackIds.join(",") }).toString(),
         {
           headers: {

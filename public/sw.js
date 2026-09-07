@@ -1,4 +1,4 @@
-const CACHE_NAME = "ym-liberty-v1";
+const CACHE_NAME = "ym-liberty-v3";
 const ASSETS_TO_CACHE = [
   "/",
   "/index.html",
@@ -11,11 +11,6 @@ const ASSETS_TO_CACHE = [
 ];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
-  );
   self.skipWaiting();
 });
 
@@ -29,13 +24,12 @@ self.addEventListener("activate", (event) => {
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {
-  // Do not cache API or audio streaming requests
+  // Never cache API or streaming media
   if (
     event.request.url.includes("/api/") ||
     event.request.url.includes(".mp3") ||
@@ -45,12 +39,16 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Network-first strategy: always fetch fresh from server when online
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request);
-    })
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const cloned = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned));
+        }
+        return networkResponse;
+      })
+      .catch(() => caches.match(event.request))
   );
 });

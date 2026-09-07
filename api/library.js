@@ -155,7 +155,7 @@ module.exports = async (req, res) => {
     }
 
     return res.status(500).json({
-      error: "Не удалось получить данные аккаунта. Попробуйте позже.",
+      error: `Не удалось получить данные аккаунта (HTTP ${errStatus || 'none'}): ${err.message}`,
       details: err.message,
       httpStatus: errStatus,
     });

@@ -764,7 +764,10 @@
       const data = await res.json();
 
       if (!res.ok || data.error) {
-        const errMsg = data.error || 'Недействительный токен';
+        let errMsg = data.error || 'Недействительный токен';
+        if (data.debug) {
+          errMsg += `\nDEBUG: ${JSON.stringify(data.debug)}`;
+        }
         if (dom.tokenStatus) {
           dom.tokenStatus.textContent = `Ошибка: ${errMsg}`;
           dom.tokenStatus.style.color = '#e63946';

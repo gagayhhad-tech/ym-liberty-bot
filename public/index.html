@@ -3,401 +3,219 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="YM Liberty">
-  <meta name="theme-color" content="#121212">
-  <title>Яндекс Музыка Liberty</title>
+  <meta name="theme-color" content="#000000">
+  <title>YM Liberty</title>
   
   <link rel="manifest" href="/manifest.json">
-  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="icon" href="/favicon.png">
   <link rel="apple-touch-icon" href="/icon-192.png">
   
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <link rel="stylesheet" href="/app.css?v=4">
+  <link rel="stylesheet" href="/app.css">
 </head>
-<body class="dark-theme">
-  <div id="app" class="app-container">
+<body>
 
-    <!-- Top Status / Header -->
-    <header class="app-header">
-      <div class="brand">
-        <span class="logo-icon"><i class="bi bi-music-note-beamed"></i></span>
-        <span class="brand-name">Музыка</span>
-        <span class="badge-liberty-header"><i class="bi bi-shield-fill-check"></i> Liberty</span>
-      </div>
-      <div class="header-actions">
-        <button id="btn-header-account" class="btn-icon" title="Аккаунт" aria-label="Аккаунт">
-          <span id="header-avatar" class="avatar-placeholder"><i class="bi bi-person-fill"></i></span>
-        </button>
-      </div>
-    </header>
+  <!-- Dynamic Background Blur -->
+  <div id="dynamic-bg" class="dynamic-bg"></div>
 
-    <!-- Main Scrollable Views -->
-    <main class="app-content">
-
-      <!-- View: Home / Главная -->
-      <section id="view-home" class="view active">
-        <div class="greeting-section">
-          <h1 id="greeting-text">Добрый день</h1>
-        </div>
-
-        <!-- Моя Волна Hero Card -->
-        <div class="vibe-card" id="card-vibe">
-          <div class="vibe-ambient"></div>
-          <div class="vibe-content">
-            <div class="vibe-badge">Поток под ваш вкус</div>
-            <h2 class="vibe-title">Моя волна</h2>
-            <p class="vibe-subtitle">Бесконечный микс треков без цензуры</p>
-            <div class="vibe-actions">
-              <button id="btn-start-vibe" class="btn-play-vibe">
-                <span class="play-icon"><i class="bi bi-play-fill"></i></span> Включить волну
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Popular Uncensored Tracks -->
-        <div class="section-block">
-          <div class="section-header">
-            <h3><i class="bi bi-fire" style="color: #ff5722; margin-right: 4px;"></i> Хиты без цензуры</h3>
-            <span class="badge-count">YM Liberty</span>
-          </div>
-          <div class="horizontal-scroll" id="popular-tracks-list">
-            <!-- Injected by app.js -->
-            <div class="track-skeleton-card"></div>
-            <div class="track-skeleton-card"></div>
-            <div class="track-skeleton-card"></div>
-          </div>
-        </div>
-
-        <!-- Recently Played -->
-        <div class="section-block">
-          <div class="section-header">
-            <h3>История прослушивания</h3>
-          </div>
-          <div class="track-vertical-list" id="recent-tracks-list">
-            <p class="empty-state">Вы ещё ничего не слушали</p>
-          </div>
-        </div>
-      </section>
-
-      <!-- View: Search / Поиск -->
-      <section id="view-search" class="view">
-        <div class="search-header">
-          <div class="search-input-wrapper">
-            <span class="search-icon"><i class="bi bi-search"></i></span>
-            <input type="search" id="search-input" placeholder="Трек, исполнитель или альбом" autocomplete="off">
-            <button id="btn-search-clear" class="btn-clear hidden"><i class="bi bi-x-circle-fill"></i></button>
-          </div>
-        </div>
-
-        <!-- Quick Tags -->
-        <div class="quick-tags">
-          <button class="tag-chip" data-query="Oxxxymiron">Oxxxymiron</button>
-          <button class="tag-chip" data-query="Big Baby Tape">Big Baby Tape</button>
-          <button class="tag-chip" data-query="Morgenshtern">Morgenshtern</button>
-          <button class="tag-chip" data-query="Instasamka">Instasamka</button>
-          <button class="tag-chip" data-query="Слава КПСС">Слава КПСС</button>
-        </div>
-
-        <!-- Search Results List -->
-        <div class="search-results">
-          <div id="search-loading" class="search-loading hidden">
-            <div class="spinner"></div>
-            <span>Ищем треки...</span>
-          </div>
-          <div id="search-results-list" class="track-vertical-list">
-            <div class="search-placeholder-msg">
-              <span class="placeholder-icon"><i class="bi bi-headphones"></i></span>
-              <p>Введите запрос для поиска по всей Яндекс Музыке</p>
-              <small>Треки из базы YM Liberty отмечены бейджем <i class="bi bi-shield-fill-check"></i></small>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- View: Library / Коллекция -->
-      <section id="view-library" class="view">
-        <div id="library-auth-prompt" class="auth-card hidden">
-          <div class="auth-card-icon"><i class="bi bi-person-circle"></i></div>
-          <h3>Войдите с Яндекс ID</h3>
-          <p>Слушайте свои любимые треки, плейлисты и персональную волну без цензуры.</p>
-          <button id="btn-login-yandex-library" class="btn-yandex-id">
-            <span class="yandex-letter">Я</span>
-            <span>Войти с Яндекс ID</span>
+  <!-- Main App Container -->
+  <div id="app-container">
+    
+    <!-- View: My Vibe (Моя Волна) -->
+    <main id="view-vibe" class="view active">
+      <div class="vibe-container">
+        <div class="vibe-animation">
+          <div class="wave wave1"></div>
+          <div class="wave wave2"></div>
+          <div class="wave wave3"></div>
+          <button id="btn-vibe-play" class="vibe-play-btn">
+            <i class="bi bi-play-fill"></i>
           </button>
         </div>
-
-        <div id="library-content">
-          <!-- Liked Tracks Header Card -->
-          <div class="liked-banner" id="card-liked-banner">
-            <div class="liked-heart-icon"><i class="bi bi-heart-fill"></i></div>
-            <div class="liked-info">
-              <h2>Мне нравится</h2>
-              <p id="liked-count-text">0 треков</p>
-            </div>
-            <button id="btn-play-liked" class="btn-play-liked" title="Включить"><i class="bi bi-play-fill"></i></button>
-          </div>
-
-          <div class="section-header" style="margin-top: 1.5rem;">
-            <h3>Любимые треки</h3>
-          </div>
-          <div class="track-vertical-list" id="liked-tracks-list">
-            <p class="empty-state">Нет сохраненных треков</p>
-          </div>
-        </div>
-      </section>
-
-      <!-- View: Settings / Настройки -->
-      <section id="view-settings" class="view">
-        <div class="settings-header">
-          <h2>Настройки</h2>
-        </div>
-
-        <!-- Yandex ID Account Card -->
-        <div class="settings-card" id="card-account">
-          <div class="card-title-row">
-            <span class="card-icon" id="account-status-icon"><i class="bi bi-person-circle"></i></span>
-            <div class="account-info-header">
-              <h4 id="account-display-name">Яндекс Аккаунт</h4>
-              <p class="text-secondary" id="account-sub-status">Не выполнен вход</p>
-            </div>
-          </div>
-
-          <!-- Logged Out State -->
-          <div id="account-logged-out-block">
-            <button id="btn-login-yandex-settings" class="btn-yandex-id" style="width: 100%; margin-bottom: 12px;">
-              <span class="yandex-letter">Я</span>
-              <span>Войти с Яндекс ID</span>
-            </button>
-            <div class="manual-token-toggle">
-              <button id="btn-toggle-manual-token" class="btn-link">Ввести токен вручную <i class="bi bi-chevron-down"></i></button>
-            </div>
-            <div id="manual-token-group" class="token-input-group hidden" style="margin-top: 10px;">
-              <input type="password" id="input-token" placeholder="Токен или ссылка с токеном...">
-              <button id="btn-save-token" class="btn-primary">OK</button>
-            </div>
-          </div>
-
-          <!-- Logged In State -->
-          <div id="account-logged-in-block" class="hidden">
-            <div class="account-details-row">
-              <span class="badge-plus" id="badge-plus-status">Плюс Активен</span>
-              <button id="btn-logout" class="btn-logout"><i class="bi bi-box-arrow-right"></i> Выйти</button>
-            </div>
-          </div>
-
-          <div id="token-status" class="token-status"></div>
-        </div>
-
-        <!-- YM Liberty Status -->
-        <div class="settings-card">
-          <div class="card-title-row">
-            <span class="card-icon"><i class="bi bi-shield-fill-check" style="color: #4a9eff;"></i></span>
-            <div>
-              <h4>База YM Liberty</h4>
-              <p class="text-secondary">Автоматический обход цензуры</p>
-            </div>
-          </div>
-          <div class="status-row">
-            <span>Статус базы:</span>
-            <span id="liberty-db-status" class="status-badge green">Загрузка...</span>
-          </div>
-          <div class="status-row">
-            <span>Восстановлено треков:</span>
-            <span id="liberty-db-count" class="status-value">1500+</span>
-          </div>
-          <div class="status-row">
-            <span>CDN аудиофайлов:</span>
-            <span class="status-value">Hugging Face CDN</span>
-          </div>
-        </div>
-
-        <!-- PWA Install Card -->
-        <div class="settings-card">
-          <div class="card-title-row">
-            <span class="card-icon"><i class="bi bi-phone" style="color: #fed42b;"></i></span>
-            <div>
-              <h4>Установка на телефон (PWA)</h4>
-              <p class="text-secondary">Запуск в полноэкранном режиме как приложение</p>
-            </div>
-          </div>
-          <div class="pwa-guide">
-            <p><strong>На iPhone (Safari):</strong> Нажмите «Поделиться» (иконка со стрелочкой вверх) ➔ «На экран Домой».</p>
-            <p><strong>На Android (Chrome):</strong> Нажмите три точки в браузере ➔ «Установить приложение».</p>
-          </div>
-        </div>
-
-        <!-- About -->
-        <div class="settings-card about-card">
-          <p><strong>Яндекс Музыка Liberty (Mobile Web)</strong></p>
-          <p class="text-secondary">Разработано в образовательных целях. Аудио стримится с серверов Яндекса и Hugging Face.</p>
-          <a href="https://github.com/gagayhhad-tech/YandexMusicLiberty" target="_blank" class="github-link">
-            Репозиторий на GitHub <i class="bi bi-box-arrow-up-right"></i>
-          </a>
-        </div>
-      </section>
-
+        <h1 class="vibe-title">Моя Волна</h1>
+        <p class="vibe-subtitle">Музыка, которая вам понравится</p>
+      </div>
     </main>
 
-    <!-- Floating Mini Player -->
-    <div id="mini-player" class="mini-player hidden">
-      <div class="mini-progress-bar">
-        <div id="mini-progress-fill" class="mini-progress-fill"></div>
+    <!-- View: Search (Поиск) -->
+    <main id="view-search" class="view">
+      <header class="top-header">
+        <h1>Поиск</h1>
+      </header>
+      <div class="search-container" style="padding: 0 20px;">
+        <div class="search-input-wrapper" style="position:relative;">
+          <i class="bi bi-search" style="position:absolute; left:15px; top:12px; color:var(--text-secondary);"></i>
+          <input type="text" class="search-input" placeholder="Трек, артист, подкаст" style="width:100%; padding:12px 12px 12px 40px; border-radius:12px; border:none; background:rgba(255,255,255,0.1); color:#fff; outline:none; font-size:16px;">
+        </div>
       </div>
-      <div class="mini-player-body">
-        <img id="mini-cover" class="mini-cover" src="/favicon.png" alt="Cover">
-        <div class="mini-info">
-          <div class="mini-title-row">
-            <span id="mini-title" class="mini-title">Выберите трек</span>
-            <span id="mini-liberty-badge" class="badge-liberty hidden"><i class="bi bi-shield-fill-check"></i></span>
+    </main>
+
+    <!-- View: Library (Коллекция) -->
+    <main id="view-library" class="view">
+      <header class="top-header">
+        <h1>Коллекция</h1>
+        <div class="header-actions">
+          <button class="icon-btn"><i class="bi bi-search"></i></button>
+        </div>
+      </header>
+      <div class="library-content">
+        <div class="playlist-header">
+          <div class="playlist-cover">
+            <i class="bi bi-heart-fill"></i>
           </div>
-          <span id="mini-artist" class="mini-artist">—</span>
+          <div class="playlist-info">
+            <h2>Мне нравится</h2>
+            <p id="likes-count">0 треков</p>
+          </div>
+          <button id="btn-play-all" class="play-all-btn">
+            <i class="bi bi-play-fill"></i>
+          </button>
+        </div>
+        
+        <div id="tracks-list" class="tracks-list">
+          <!-- Tracks will be injected here -->
+          <div class="empty-state">
+            <i class="bi bi-music-note-beamed"></i>
+            <p>Нет загруженных треков</p>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- View: Settings (Настройки) -->
+    <main id="view-settings" class="view">
+      <header class="top-header">
+        <h1>Настройки</h1>
+      </header>
+      <div class="settings-content">
+        
+        <div class="settings-card account-card">
+          <div class="account-header">
+            <div id="header-avatar" class="avatar">?</div>
+            <div class="account-info">
+              <h3 id="account-name">Не выполнен вход</h3>
+              <p id="account-sub">Нажмите для авторизации</p>
+            </div>
+          </div>
+          <button id="btn-login-modal" class="btn-primary">Авторизоваться</button>
+        </div>
+
+        <div class="settings-section">
+          <h3>Кастомизация</h3>
+          <div class="setting-item">
+            <span>Динамический фон</span>
+            <label class="switch">
+              <input type="checkbox" id="toggle-dynamic-bg" checked>
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="setting-item">
+            <span>Цвет акцента</span>
+            <select id="select-accent" class="form-select">
+              <option value="#fed42b">Желтый (ЯМ)</option>
+              <option value="#1db954">Зеленый (Spotify)</option>
+              <option value="#ff2d55">Розовый (Apple)</option>
+            </select>
+          </div>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- Mini Player -->
+    <div id="mini-player" class="mini-player hidden">
+      <div class="mini-progress-bar" id="mini-progress"></div>
+      <div class="mini-player-content">
+        <img id="mini-cover" src="/favicon.png" alt="Cover" class="mini-cover">
+        <div class="mini-info">
+          <div id="mini-title" class="mini-title">Track Title</div>
+          <div id="mini-artist" class="mini-artist">Artist</div>
         </div>
         <div class="mini-controls">
-          <button id="btn-mini-like" class="btn-icon" aria-label="Мне нравится"><i class="bi bi-heart"></i></button>
-          <button id="btn-mini-play" class="btn-icon-play" aria-label="Воспроизведение"><i class="bi bi-play-fill"></i></button>
+          <button id="mini-btn-play" class="icon-btn"><i class="bi bi-play-fill"></i></button>
+          <button id="mini-btn-next" class="icon-btn"><i class="bi bi-skip-forward-fill"></i></button>
         </div>
       </div>
     </div>
 
-    <!-- Bottom Navigation Bar -->
-    <nav class="bottom-nav">
-      <button class="nav-item active" data-target="view-home">
-        <span class="nav-icon"><i class="bi bi-house-door-fill"></i></span>
-        <span class="nav-label">Главное</span>
+    <!-- Bottom Navigation -->
+    <nav id="bottom-nav" class="bottom-nav">
+      <button class="nav-btn active" data-target="view-vibe">
+        <i class="bi bi-vinyl-fill"></i>
+        <span>Волна</span>
       </button>
-      <button class="nav-item" data-target="view-search">
-        <span class="nav-icon"><i class="bi bi-search"></i></span>
-        <span class="nav-label">Поиск</span>
+      <button class="nav-btn" data-target="view-search">
+        <i class="bi bi-search"></i>
+        <span>Поиск</span>
       </button>
-      <button class="nav-item" data-target="view-library">
-        <span class="nav-icon"><i class="bi bi-heart-fill"></i></span>
-        <span class="nav-label">Коллекция</span>
+      <button class="nav-btn" data-target="view-library">
+        <i class="bi bi-music-note-list"></i>
+        <span>Коллекция</span>
       </button>
-      <button class="nav-item" data-target="view-settings">
-        <span class="nav-icon"><i class="bi bi-gear-fill"></i></span>
-        <span class="nav-label">Настройки</span>
+      <button class="nav-btn" data-target="view-settings">
+        <i class="bi bi-gear-fill"></i>
+        <span>Настройки</span>
       </button>
     </nav>
 
-    <!-- Full Screen Player Modal Sheet -->
-    <div id="player-modal" class="player-modal closed">
-      <div id="player-ambient" class="player-ambient"></div>
-      
-      <!-- Top Bar of Full Player -->
-      <div class="player-top-bar">
-        <button id="btn-player-close" class="btn-player-down" aria-label="Свернуть"><i class="bi bi-chevron-down"></i></button>
-        <div class="player-top-title">
-          <span>СЕЙЧАС ИГРАЕТ</span>
-        </div>
-        <button id="btn-player-menu" class="btn-player-menu" aria-label="Меню"><i class="bi bi-three-dots"></i></button>
-      </div>
-
-      <!-- Center Big Artwork -->
-      <div class="player-art-container">
-        <div class="artwork-wrapper">
-          <img id="player-cover" class="player-cover" src="/favicon.png" alt="Artwork">
-        </div>
-      </div>
-
-      <!-- Track Info -->
-      <div class="player-track-info">
-        <div class="player-titles">
-          <div class="title-with-badge">
-            <h2 id="player-title" class="player-title">Название трека</h2>
-            <span id="player-liberty-badge" class="badge-liberty-large hidden" title="Без цензуры (YM Liberty)"><i class="bi bi-shield-fill-check"></i> Без цензуры</span>
-          </div>
-          <p id="player-artist" class="player-artist">Исполнитель</p>
-        </div>
-        <button id="btn-player-like" class="btn-player-like"><i class="bi bi-heart"></i></button>
-      </div>
-
-      <!-- Seek Bar -->
-      <div class="player-progress-area">
-        <div class="progress-bar-container" id="player-seek-container">
-          <div class="progress-bar-bg"></div>
-          <div id="player-seek-fill" class="progress-bar-fill"></div>
-          <div id="player-seek-thumb" class="progress-bar-thumb"></div>
-        </div>
-        <div class="progress-time-row">
-          <span id="player-time-current">0:00</span>
-          <span id="player-time-total">0:00</span>
-        </div>
-      </div>
-
-      <!-- Controls -->
-      <div class="player-controls">
-        <button id="btn-player-shuffle" class="btn-control-secondary" title="Перемешать"><i class="bi bi-shuffle"></i></button>
-        <button id="btn-player-prev" class="btn-control-skip" title="Предыдущий"><i class="bi bi-skip-start-fill"></i></button>
-        <button id="btn-player-play" class="btn-control-play" title="Воспроизведение"><i class="bi bi-play-fill"></i></button>
-        <button id="btn-player-next" class="btn-control-skip" title="Следующий"><i class="bi bi-skip-end-fill"></i></button>
-        <button id="btn-player-repeat" class="btn-control-secondary" title="Повтор"><i class="bi bi-repeat"></i></button>
-      </div>
-
-      <!-- Bottom Audio Source Indicator -->
-      <div class="player-footer-info">
-        <span id="player-source-info">YM Liberty Engine • 320 kbps</span>
-      </div>
-    </div>
-
-    <!-- Auth Modal (3 methods) -->
-    <div id="modal-yandex-login" class="dialog-overlay hidden">
-      <div class="dialog-card auth-modal-card">
-        <div class="auth-modal-header">
-          <div class="yandex-logo-circle">
-            <span class="yandex-letter-large">Я</span>
-          </div>
-          <h3>Войти с Яндекс ID</h3>
-        </div>
-
-        <!-- Method 1: Yandex Music Token Generator (Recommended) -->
-        <div class="auth-method-block auth-method-recommended">
-          <div class="auth-method-title">
-            <i class="bi bi-key-fill"></i>
-            Способ 1 — Генератор токенов <span class="auth-badge-rec">Рекомендуется</span>
-          </div>
-          <ol class="auth-steps">
-            <li>Перейдите на <a href="https://ym-token.marshal.dev/" target="_blank" class="auth-link">ym-token.marshal.dev <i class="bi bi-box-arrow-up-right" style="font-size: 10px;"></i></a></li>
-            <li>Авторизуйтесь в Яндексе (это безопасно, код open-source)</li>
-            <li>Скопируйте полученный токен (начинается с <code>y0_AgAAAA...</code>)</li>
-            <li>Вставьте токен ниже:</li>
-          </ol>
-          <div class="manual-input-row" style="margin-top: 10px;">
-            <input type="text" id="input-modal-token" placeholder="y0_AgAAAA..." autocomplete="off">
-            <button id="btn-submit-modal-token" class="btn-primary" type="button">Войти</button>
-          </div>
-          <button id="btn-paste-clipboard-token" class="btn-paste-clipboard" type="button">
-            <i class="bi bi-clipboard-check"></i>
-            <span>Вставить из буфера обмена</span>
-          </button>
-        </div>
-
-        <!-- Method 2: Desktop Mod -->
-        <div class="auth-method-block">
-          <div class="auth-method-title">
-            <i class="bi bi-pc-display"></i>
-            Способ 2 — Desktop Мод
-          </div>
-          <ol class="auth-steps">
-            <li>Откройте Desktop Мод → Настройки → Аккаунт</li>
-            <li>Нажмите <strong>«Скопировать данные авторизации»</strong></li>
-            <li>Вставьте скопированный JSON в поле выше</li>
-          </ol>
-        </div>
-
-        <div id="modal-token-status" class="token-status" style="margin-top: 8px;"></div>
-
-        <button id="btn-close-yandex-login" class="btn-secondary" style="margin-top: 12px; width: 100%;" type="button">Закрыть</button>
-      </div>
-    </div>
-
-    <!-- Hidden HTML5 Audio Element -->
-    <audio id="audio-element" preload="auto"></audio>
-
   </div>
 
-  <script src="/app.js?v=8"></script>
+  <!-- Full Screen Player Modal -->
+  <div id="full-player" class="full-player">
+    <div class="full-player-header">
+      <button id="btn-close-player" class="icon-btn"><i class="bi bi-chevron-down"></i></button>
+      <span>Сейчас играет</span>
+      <button class="icon-btn"><i class="bi bi-three-dots"></i></button>
+    </div>
+    
+    <div class="full-cover-container">
+      <img id="full-cover" src="/favicon.png" alt="Cover" class="full-cover">
+    </div>
+    
+    <div class="full-info">
+      <div class="full-title-row">
+        <div>
+          <h2 id="full-title">Track Title</h2>
+          <p id="full-artist">Artist</p>
+        </div>
+        <button id="btn-like" class="icon-btn like-btn"><i class="bi bi-heart"></i></button>
+      </div>
+    </div>
+
+    <div class="progress-container">
+      <input type="range" id="progress-slider" value="0" min="0" max="100" step="0.1">
+      <div class="time-row">
+        <span id="time-current">0:00</span>
+        <span id="time-total">0:00</span>
+      </div>
+    </div>
+
+    <div class="full-controls">
+      <button class="icon-btn secondary"><i class="bi bi-shuffle"></i></button>
+      <button id="btn-full-prev" class="icon-btn primary"><i class="bi bi-skip-backward-fill"></i></button>
+      <button id="btn-full-play" class="play-circle-btn"><i class="bi bi-play-fill"></i></button>
+      <button id="btn-full-next" class="icon-btn primary"><i class="bi bi-skip-forward-fill"></i></button>
+      <button class="icon-btn secondary"><i class="bi bi-repeat"></i></button>
+    </div>
+  </div>
+
+  <!-- Auth Modal (Hidden by default) -->
+  <div id="auth-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Вход в аккаунт</h2>
+        <button id="btn-close-auth" class="icon-btn"><i class="bi bi-x-lg"></i></button>
+      </div>
+      <div class="modal-body">
+        <p>Чтобы слушать свою музыку, вставьте токен авторизации.</p>
+        <input type="text" id="input-token" class="form-input" placeholder="y0_AgAAAA...">
+        <button id="btn-submit-token" class="btn-primary" style="margin-top:15px; width:100%">Войти</button>
+        <p id="auth-status" class="status-text"></p>
+      </div>
+    </div>
+  </div>
+
+  <audio id="audio-player"></audio>
+  <script src="/app.js"></script>
 </body>
 </html>

@@ -4,3 +4,6 @@ node_modules/
 *.ps1
 merge.js
 migrate.js
+*.bak
+app_backup.js
+

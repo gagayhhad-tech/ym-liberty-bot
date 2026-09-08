@@ -68,7 +68,42 @@ module.exports = async (req, res) => {
       }
     }
 
-    return res.status(400).json({ error: "Invalid action. Supported: code, poll" });
+    if (action === "password") {
+      const username = req.query?.username || req.body?.username;
+      const password = req.query?.password || req.body?.password;
+      if (!username || !password) {
+        return res.status(400).json({ error: "Username and password required" });
+      }
+
+      try {
+        const params = new URLSearchParams({
+          grant_type: "password",
+          client_id: CLIENT_ID,
+          client_secret: CLIENT_SECRET,
+          username,
+          password,
+        });
+
+        const response = await axios.post("https://oauth.yandex.com/token", params.toString(), {
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          timeout: 8000,
+        });
+
+        return res.status(200).json({
+          status: "success",
+          access_token: response.data.access_token,
+        });
+      } catch (passErr) {
+        const errData = passErr.response?.data || {};
+        return res.status(200).json({
+          status: "error",
+          error: errData.error || "Login failed",
+          error_description: errData.error_description || passErr.message,
+        });
+      }
+    }
+
+    return res.status(400).json({ error: "Invalid action. Supported: code, poll, password" });
   } catch (err) {
     console.error("Auth handler error:", err.message);
     return res.status(500).json({

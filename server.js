@@ -3,6 +3,14 @@ const path = require('path');
 const cors = require('cors');
 
 const app = express();
+
+const libraryHandler = require('./api/library');
+const streamHandler = require('./api/stream');
+const vibeHandler = require('./api/vibe');
+const searchHandler = require('./api/search');
+const artistHandler = require('./api/artist');
+const feedbackHandler = require('./api/feedback');
+
 const PORT = process.env.PORT || 3000;
 
 // Middleware for parsing body
@@ -13,8 +21,14 @@ app.use(cors());
 // Serve static files from the 'public' directory
 app.use(express.static(path.join(__dirname, 'public')));
 
-// API Routes - dynamically load handlers from the api folder
-const apiRoutes = ['auth', 'library', 'search', 'popular', 'stream'];
+app.get('/api/library', libraryHandler);
+app.get('/api/stream', streamHandler);
+app.get('/api/vibe', vibeHandler);
+app.get('/api/search', searchHandler);
+app.get('/api/artist', artistHandler);
+app.post('/api/feedback', feedbackHandler);
+
+const apiRoutes = ['auth', 'library', 'search', 'popular', 'stream', 'proxy-audio', 'like', 'playlists', 'playlist', 'album', 'playlist-add', 'bot', 'report', 'version'];
 
 apiRoutes.forEach(route => {
   const handler = require(path.join(__dirname, 'api', `${route}.js`));

@@ -1,29 +1,5 @@
 const axios = require("axios");
-
-let cachedList = null;
-let lastCacheTime = 0;
-
-async function getLibertyList() {
-  const now = Date.now();
-  if (cachedList && now - lastCacheTime < 60000) {
-    return cachedList;
-  }
-  const urls = [
-    "https://cdn.jsdelivr.net/gh/gagayhhad-tech/ym-liberty-db@main/list.json",
-    "https://raw.githubusercontent.com/gagayhhad-tech/ym-liberty-db/refs/heads/main/list.json"
-  ];
-  for (const url of urls) {
-    try {
-      const res = await axios.get(url, { timeout: 4000 });
-      cachedList = res.data && res.data.tracks ? res.data.tracks : res.data;
-      lastCacheTime = now;
-      return cachedList;
-    } catch (e) {
-      // try next
-    }
-  }
-  return cachedList || {};
-}
+const getLibertyList = require("./libertyList");
 
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -58,10 +34,11 @@ module.exports = async (req, res) => {
   };
 
   try {
-    const proxyBase = "https://ym-proxy.gagayhhad.workers.dev/?url=";
-    const statusRes = await axios.get(proxyBase + encodeURIComponent("https://api.music.yandex.ru/account/status"), {
-      headers,
-      timeout: 10000,
+    const statusRes = await axios.get('https://api.music.yandex.net/account/status', {
+      headers: {
+        'Authorization': `OAuth ${rawToken}`,
+        'X-Yandex-Music-Client': 'YandexMusicAndroid/24023231'
+      }
     });
 
     console.log("Status response code:", statusRes.status);
@@ -85,7 +62,7 @@ module.exports = async (req, res) => {
 
     // 2. Get liked tracks
     const [likesRes, libertyTracks] = await Promise.all([
-      axios.get(proxyBase + encodeURIComponent(`https://api.music.yandex.ru/users/${uid}/likes/tracks`), {
+      axios.get(`https://api.music.yandex.net/users/${uid}/likes/tracks`, {
         headers,
         timeout: 8000,
       }),
@@ -93,23 +70,34 @@ module.exports = async (req, res) => {
     ]);
 
     const likedItems = likesRes.data?.result?.library?.tracks || [];
-    const trackIds = likedItems.slice(0, 50).map((t) => t.id);
+    const trackIds = likedItems.map((t) => t.id);
 
     let tracks = [];
     if (trackIds.length > 0) {
-      const tracksRes = await axios.post(
-        proxyBase + encodeURIComponent("https://api.music.yandex.ru/tracks"),
-        new URLSearchParams({ "track-ids": trackIds.join(",") }).toString(),
-        {
-          headers: {
-            ...headers,
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          timeout: 8000,
-        }
+      const chunkSize = 200;
+      const chunks = [];
+      for (let i = 0; i < trackIds.length; i += chunkSize) {
+        chunks.push(trackIds.slice(i, i + chunkSize));
+      }
+
+      const fetchPromises = chunks.map(chunk => 
+        axios.post(
+          "https://api.music.yandex.net/tracks",
+          new URLSearchParams({ "track-ids": chunk.join(",") }).toString(),
+          {
+            headers: {
+              ...headers,
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            timeout: 10000,
+          }
+        )
       );
 
-      const rawTracks = tracksRes.data?.result || [];
+      const trackResponses = await Promise.all(fetchPromises);
+      
+      const rawTracks = trackResponses.flatMap(res => res.data?.result || []);
+      
       tracks = rawTracks.map((t) => {
         const idStr = String(t.id);
         const isLiberty = Boolean(libertyTracks && libertyTracks[idStr]);

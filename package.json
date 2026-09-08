@@ -26,6 +26,7 @@
     "express": "^5.2.1",
     "https-proxy-agent": "^9.1.0",
     "node-id3": "^0.2.9",
-    "node-telegram-bot-api": "^2.1.0"
+    "node-telegram-bot-api": "^2.1.0",
+    "yandex-music-client": "^0.4.3"
   }
 }

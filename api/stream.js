@@ -70,10 +70,9 @@ module.exports = async (req, res) => {
       });
     }
 
-    const proxyBase = "https://ym-proxy.gagayhhad.workers.dev/?url=";
     const authHeader = token.startsWith("OAuth") ? token : `OAuth ${token}`;
     const dlInfoRes = await axios.get(
-      proxyBase + encodeURIComponent(`https://api.music.yandex.net/tracks/${trackId}/download-info`),
+      `https://api.music.yandex.net/tracks/${trackId}/download-info`,
       {
         headers: {
           Authorization: authHeader,
@@ -93,7 +92,7 @@ module.exports = async (req, res) => {
     const selectedOption =
       downloadOptions.find((opt) => opt.codec === "mp3") || downloadOptions[0];
 
-    const xmlRes = await axios.get(proxyBase + encodeURIComponent(selectedOption.downloadInfoUrl), {
+    const xmlRes = await axios.get(selectedOption.downloadInfoUrl, {
       headers: {
         Authorization: authHeader,
       },

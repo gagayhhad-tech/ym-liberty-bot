@@ -938,11 +938,13 @@ function setupMediaSession() {
 }
 
 function syncNativeMedia(title, artist, isPlaying, positionMs, durationMs, coverUrl) {
-  if (!state.currentTrack || !state.currentTrack.id) return;
   if (window.AndroidBridge && typeof window.AndroidBridge.updateMedia === 'function') {
     try {
       const curTitle = title || state.currentTrack?.title || 'YM Liberty';
-      const curArtist = artist || state.currentTrack?.artist || '';
+      const curArtist = artist || state.currentTrack?.artist || 'Музыка';
+      if (!curTitle || curTitle === 'YM Liberty') {
+        if (!state.currentTrack) return;
+      }
       const playing = isPlaying !== undefined ? !!isPlaying : !!state.isPlaying;
       
       let p = positionMs !== undefined ? positionMs : (activePlayer.currentTime || 0) * 1000;
@@ -1165,6 +1167,11 @@ function updateTrackUI(trackInfo) {
   
   if (trackInfo.cover.includes('1000x1000')) {
     dom.fullCover.src = trackInfo.cover;
+    if (state.isPlaying) {
+      dom.fullCover.classList.add('playing');
+    } else {
+      dom.fullCover.classList.remove('playing');
+    }
   } else {
     dom.fullCover.src = trackInfo.cover.replace('100x100', '400x400');
   }
@@ -1263,23 +1270,30 @@ if (dom.btnLike) {
 }
 
 function updatePlayButtons() {
-  const icon = state.isPlaying ? 'bi-pause-fill' : 'bi-play-fill';
-  dom.miniBtnPlay.innerHTML = `<i class="bi ${icon}"></i>`;
-  dom.fullBtnPlay.innerHTML = `<i class="bi ${icon}"></i>`;
-  dom.vibePlayBtn.innerHTML = `<i class="bi ${icon}"></i>`;
-  
-  const blobs = document.querySelectorAll('.blob');
-  blobs.forEach(blob => {
-    blob.style.animationPlayState = state.isPlaying ? 'running' : 'paused';
-  });
-}
+    const icon = state.isPlaying ? 'bi-pause-fill' : 'bi-play-fill';
+    dom.miniBtnPlay.innerHTML = `<i class="bi ${icon}"></i>`;
+    dom.fullBtnPlay.innerHTML = `<i class="bi ${icon}"></i>`;
+    dom.vibePlayBtn.innerHTML = `<i class="bi ${icon}"></i>`;
+
+    // Dynamic 3D Cover Pop / Recede on Play/Pause
+    if (dom.fullCover) {
+      if (state.isPlaying) {
+        dom.fullCover.classList.add('playing');
+      } else {
+        dom.fullCover.classList.remove('playing');
+      }
+    }
+  }
 
 // Audio Events for Both Dual Players
 function bindAudioPlayerEvents(player) {
   player.addEventListener('play', (e) => {
     if (e.target !== activePlayer) return;
     state.isPlaying = true;
-    lastAudioSampleTime = activePlayer.currentTime || 0;
+      if (window.AndroidBridge && typeof window.AndroidBridge.requestNotificationPermission === 'function') {
+        window.AndroidBridge.requestNotificationPermission();
+      }
+      lastAudioSampleTime = activePlayer.currentTime || 0;
     lastAudioCurrentTrackId = state.currentTrack?.id || 'current';
     updatePlayButtons();
     if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'playing';
@@ -3922,7 +3936,7 @@ function initSwipeGestures() {
   }
 
   // 3. Artist & Album Views Gestures (Smooth 120Hz Swipe Right to Back)
-  ['view-artist', 'view-album'].forEach((viewId) => {
+  ['view-artist', 'view-album', 'view-search'].forEach((viewId) => {
     const viewEl = document.getElementById(viewId);
     if (!viewEl) return;
 
@@ -3991,6 +4005,39 @@ function initSwipeGestures() {
 
 // Initialize on DOM load and user interaction
 document.addEventListener('DOMContentLoaded', () => {
+  // Vibe Search Button -> Open Search
+  const btnVibeSearch = document.getElementById('btn-vibe-search');
+  if (btnVibeSearch) {
+    btnVibeSearch.addEventListener('click', () => {
+      navigateToView('view-search');
+      setTimeout(() => {
+        const input = document.getElementById('search-input');
+        if (input) input.focus();
+      }, 100);
+    });
+  }
+
+  // Search Back Button -> Return to previous view
+  const btnCloseSearch = document.getElementById('btn-close-search');
+  if (btnCloseSearch) {
+    btnCloseSearch.addEventListener('click', () => {
+      navigateBack();
+    });
+  }
+
+  // Search Tag Chips Click
+  document.querySelectorAll('.search-tag-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const q = chip.getAttribute('data-query');
+      const input = document.getElementById('search-input');
+      if (input && q) {
+        input.value = q;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.focus();
+      }
+    });
+  });
+
   initVibeMoodChips();
   updateWaveStatsDisplay();
   initEqualizerAndQualityUI();

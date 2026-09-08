@@ -117,7 +117,19 @@
           <i class="bi bi-search" style="position:absolute; left:15px; top:12px; color:var(--text-secondary);"></i>
           <input type="text" id="search-input" class="search-input" placeholder="Трек, артист, подкаст" style="width:100%; padding:12px 12px 12px 40px; border-radius:12px; border:none; background:rgba(255,255,255,0.1); color:#fff; outline:none; font-size:16px;">
         </div>
-        <div id="search-results" class="tracks-list" style="margin-top: 20px; padding-bottom: 100px;"></div>
+        <div id="search-suggestions" class="search-suggestions-wrap">
+            <div class="search-suggestions-title">Рекомендации и жанры</div>
+            <div class="search-tags-row">
+              <button class="search-tag-chip" data-query="Хиты">🔥 Хиты</button>
+              <button class="search-tag-chip" data-query="Рок">🎸 Рок</button>
+              <button class="search-tag-chip" data-query="Хип-хоп">🎤 Хип-хоп</button>
+              <button class="search-tag-chip" data-query="Электроника">⚡ Электроника</button>
+              <button class="search-tag-chip" data-query="Фонк">🏎️ Фонк</button>
+              <button class="search-tag-chip" data-query="Инди">✨ Инди</button>
+              <button class="search-tag-chip" data-query="Релакс">🌙 Релакс</button>
+            </div>
+          </div>
+          <div id="search-results" class="tracks-list" style="margin-top: 20px; padding-bottom: 100px;"></div>
       </div>
     </main>
 
@@ -354,7 +366,7 @@
               </div>
               <div class="about-app-text">
                 <div class="about-app-name">YM Liberty</div>
-                <div id="app-version-label" class="about-app-version">v1.0.9 (сборка 10)</div>
+                <div id="app-version-label" class="about-app-version">v1.0.10 (сборка 11)</div>
               </div>
             </div>
             <button id="btn-check-update" class="btn-check-update" aria-label="Проверить обновления">
@@ -578,7 +590,7 @@
           <div class="update-icon-badge"><i class="bi bi-arrow-up-circle-fill"></i></div>
           <div>
             <h2 style="font-size: 18px; font-weight: bold; margin: 0;">Обновление YM Liberty</h2>
-            <span id="update-version-tag" class="update-version-tag">v1.0.9</span>
+            <span id="update-version-tag" class="update-version-tag">v1.0.10</span>
           </div>
         </div>
         <button id="btn-close-update-x" class="icon-btn" style="color: var(--text-secondary);"><i class="bi bi-x-lg"></i></button>

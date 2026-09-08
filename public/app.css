@@ -1645,12 +1645,6 @@ input[type=range]::-webkit-slider-thumb {
 }
 
 /* Crossfade Settings styling */
-.crossfade-card .switch {
-  position: relative;
-  display: inline-block;
-  width: 44px;
-  height: 24px;
-}
 
 .crossfade-slider-input {
   -webkit-appearance: none;

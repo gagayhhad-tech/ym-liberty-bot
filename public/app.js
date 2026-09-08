@@ -2761,6 +2761,14 @@ function syncVibeMoodUI(moodName) {
   }
 }
 
+const VIBE_MOOD_SETTINGS_MAP = {
+  'all': { moodEnergy: 'all', diversity: 'default' },
+  'energy': { moodEnergy: 'active', diversity: 'default' },
+  'calm': { moodEnergy: 'calm', diversity: 'default' },
+  'happy': { moodEnergy: 'fun', diversity: 'default' },
+  'discover': { moodEnergy: 'all', diversity: 'discover' }
+};
+
 function initVibeMoodChips() {
   const stats = getWaveStats();
   const savedMood = localStorage.getItem('ym_active_vibe_mood') || stats.mood || 'Всё подряд';
@@ -2768,8 +2776,9 @@ function initVibeMoodChips() {
 
   const chips = document.querySelectorAll('.vibe-chip');
   chips.forEach(chip => {
-    chip.addEventListener('click', () => {
+    chip.addEventListener('click', async () => {
       const moodName = chip.textContent.trim();
+      const moodKey = chip.getAttribute('data-mood') || 'all';
       const curStats = getWaveStats();
       curStats.mood = moodName;
       saveWaveStats(curStats);
@@ -2777,11 +2786,42 @@ function initVibeMoodChips() {
       syncVibeMoodUI(moodName);
       updateWaveStatsDisplay();
       showToast(`Настроение: ${moodName}`);
+
+      const settings = VIBE_MOOD_SETTINGS_MAP[moodKey] || { moodEnergy: 'all', diversity: 'default' };
+
+      // Отправляем настройки в Яндекс Ротор
+      if (state.token && YandexClient.setVibeSettings) {
+        YandexClient.setVibeSettings(settings.moodEnergy, settings.diversity, state.token).catch(e => {
+          console.warn('Failed to update vibe settings:', e);
+        });
+      }
+
       if (state.queueMode === 'vibe' && (!state.currentStation || state.currentStation === 'user:onyourwave')) {
         updatePlaybackContextHeader('ИГРАЕТ ИЗ ВОЛНЫ', moodName === 'Всё подряд' ? 'Моя Волна' : `Моя Волна • ${moodName}`);
-      }
-      if (state.queueMode === 'vibe' && state.isPlaying) {
-        playNext(false);
+
+        // Бесшовно перестраиваем очередь под новое настроение
+        try {
+          state.isFetchingVibe = true;
+          const data = await YandexClient.getVibe(state.token, null, 'user:onyourwave');
+          if (data && data.tracks && data.tracks.length > 0) {
+            state.vibeBatchId = data.batchId;
+            const currentTr = state.queue[state.queueIndex];
+            if (currentTr) {
+              state.queue = [currentTr, ...data.tracks.filter(t => String(t.id) !== String(currentTr.id))];
+              state.queueIndex = 0;
+            } else {
+              state.queue = data.tracks;
+              state.queueIndex = 0;
+            }
+            if (typeof preloadNextTrack === 'function') {
+              preloadNextTrack();
+            }
+          }
+        } catch (err) {
+          console.warn('Failed to reload vibe queue for new mood:', err);
+        } finally {
+          state.isFetchingVibe = false;
+        }
       }
     });
   });

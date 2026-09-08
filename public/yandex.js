@@ -333,6 +333,42 @@ const YandexClient = {
     });
   },
 
+  async setVibeSettings(moodEnergy = 'all', diversity = 'default', token) {
+    if (!token) return { success: false };
+    if (isLocal) {
+      try {
+        const res = await fetch('/api/vibe?action=settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, moodEnergy, diversity })
+        });
+        return res.json();
+      } catch (e) {
+        console.warn('Vibe settings local error:', e);
+        return { success: false };
+      }
+    }
+
+    try {
+      const res = await fetch('https://api.music.yandex.net/rotor/station/user:onyourwave/settings3', {
+        method: 'POST',
+        headers: {
+          ...this.getHeaders(token),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          moodEnergy: moodEnergy || 'all',
+          diversity: diversity || 'default',
+          type: 'rotor'
+        })
+      });
+      return { success: res.ok };
+    } catch (e) {
+      console.warn('Vibe settings error:', e);
+      return { success: false };
+    }
+  },
+
   async search(query, token) {
     if (isLocal) {
       const res = await fetch(`/api/search?query=${encodeURIComponent(query)}&token=${encodeURIComponent(token || '')}`);

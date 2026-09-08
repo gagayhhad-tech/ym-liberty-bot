@@ -2,7 +2,43 @@ const axios = require('axios');
 const getLibertyList = require('./libertyList');
 
 module.exports = async function (req, res) {
-  const { token } = req.query;
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+
+  // Handle vibe settings update (mood / diversity)
+  if (req.method === "POST" || req.query.action === "settings") {
+    const token = req.body?.token || req.query?.token;
+    if (!token) {
+      return res.status(400).json({ error: "No token provided" });
+    }
+    const { moodEnergy = "all", diversity = "default" } = req.body || {};
+    try {
+      const headers = {
+        'Authorization': `OAuth ${token}`,
+        'X-Yandex-Music-Client': 'YandexMusicAndroid/24023231'
+      };
+      const response = await axios.post(
+        'https://api.music.yandex.net/rotor/station/user:onyourwave/settings3',
+        {
+          moodEnergy: moodEnergy || 'all',
+          diversity: diversity || 'default',
+          type: 'rotor'
+        },
+        { headers }
+      );
+      return res.json({ success: true, result: response.data });
+    } catch (err) {
+      console.error("Vibe Settings Error:", err.response?.status, err.response?.data || err.message);
+      return res.status(500).json({ error: err.message, data: err.response?.data });
+    }
+  }
+
+  const token = req.query.token;
 
   if (!token) {
     return res.status(400).json({ error: "No token provided" });

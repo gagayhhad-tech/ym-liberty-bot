@@ -3427,12 +3427,10 @@ function initHomeNewReleases() {
 }
 
 // ==========================================
-// Vibe Ambient Fluid Aura & Visualizer Bands
+// Vibe Ambient Fluid Aura & Visualizer Bands (Mobile Optimized 120Hz)
 // ==========================================
 let vibeAuraCanvas = null;
 let vibeAuraCtx = null;
-let vibeWavesCanvas = null;
-let vibeWavesCtx = null;
 let vibeAuraWidth = 0;
 let vibeAuraHeight = 0;
 let vibeAuraAnimFrame = null;
@@ -3450,43 +3448,38 @@ let auraTargetColors = [
   { r: 120, g: 30, b: 210 }
 ];
 
-// Blobs parameters for background glow
+// Blobs parameters for soft gradient cloud (runs directly on canvas, 0% CSS blur overhead)
 const AURA_BLOBS = [
-  { baseX: 0.5, baseY: 0.38, radiusRatio: 0.58, speedX: 0.0008, speedY: 0.0011, phaseX: 0, phaseY: 1.2, colorIdx: 0 },
-  { baseX: 0.28, baseY: 0.44, radiusRatio: 0.48, speedX: 0.0012, speedY: 0.0009, phaseX: 2.1, phaseY: 3.5, colorIdx: 1 },
-  { baseX: 0.72, baseY: 0.40, radiusRatio: 0.50, speedX: 0.0010, speedY: 0.0013, phaseX: 4.3, phaseY: 0.8, colorIdx: 2 }
+  { baseX: 0.50, baseY: 0.28, radiusRatio: 0.65, speedX: 0.0007, speedY: 0.0009, phaseX: 0, phaseY: 1.2, colorIdx: 0, alpha: 0.45 },
+  { baseX: 0.32, baseY: 0.32, radiusRatio: 0.52, speedX: 0.0010, speedY: 0.0008, phaseX: 2.1, phaseY: 3.5, colorIdx: 1, alpha: 0.35 },
+  { baseX: 0.68, baseY: 0.30, radiusRatio: 0.55, speedX: 0.0009, speedY: 0.0011, phaseX: 4.3, phaseY: 0.8, colorIdx: 2, alpha: 0.35 }
 ];
 
-// Visualizer Bands / Contour Ribbons Configuration
+// Concentric organic contour rings
 const AURA_RINGS = [
-  { baseRadius: 78, speed1: 0.0014, speed2: 0.0022, amp1: 10, amp2: 6, colorIdx: 0, alpha: 0.65, lineWidth: 2.2 },
-  { baseRadius: 130, speed1: 0.0011, speed2: 0.0018, amp1: 14, amp2: 9, colorIdx: 1, alpha: 0.55, lineWidth: 2.0 },
-  { baseRadius: 190, speed1: 0.0008, speed2: 0.0014, amp1: 18, amp2: 12, colorIdx: 2, alpha: 0.45, lineWidth: 1.8 },
-  { baseRadius: 255, speed1: 0.0006, speed2: 0.0010, amp1: 22, amp2: 15, colorIdx: 0, alpha: 0.35, lineWidth: 1.6 }
+  { baseRadius: 72, speed1: 0.0012, speed2: 0.0018, amp1: 7, amp2: 5, colorIdx: 0, alpha: 0.70, coreWidth: 2.0 },
+  { baseRadius: 115, speed1: 0.0009, speed2: 0.0014, amp1: 10, amp2: 7, colorIdx: 1, alpha: 0.60, coreWidth: 1.8 },
+  { baseRadius: 165, speed1: 0.0007, speed2: 0.0011, amp1: 13, amp2: 9, colorIdx: 2, alpha: 0.50, coreWidth: 1.6 },
+  { baseRadius: 220, speed1: 0.0005, speed2: 0.0008, amp1: 16, amp2: 11, colorIdx: 0, alpha: 0.40, coreWidth: 1.4 }
 ];
 
 function initVibeAmbientAura() {
   vibeAuraCanvas = document.getElementById('vibe-ambient-canvas');
-  vibeWavesCanvas = document.getElementById('vibe-waves-canvas');
-  if (!vibeAuraCanvas || !vibeWavesCanvas) return;
-
+  if (!vibeAuraCanvas) return;
   vibeAuraCtx = vibeAuraCanvas.getContext('2d');
-  vibeWavesCtx = vibeWavesCanvas.getContext('2d');
 
   function resizeAura() {
     const parent = vibeAuraCanvas.parentElement || document.getElementById('view-vibe') || document.body;
     const rect = parent.getBoundingClientRect();
     vibeAuraWidth = Math.max(rect.width, window.innerWidth || 360);
-    vibeAuraHeight = Math.max(rect.height, 460);
+    vibeAuraHeight = 560; // Matches wrap height
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    vibeAuraCanvas.width = Math.round(vibeAuraWidth * 0.5); // Downscaled for ultra-smooth background blur
-    vibeAuraCanvas.height = Math.round(vibeAuraHeight * 0.5);
-
-    vibeWavesCanvas.width = Math.round(vibeAuraWidth * dpr);
-    vibeWavesCanvas.height = Math.round(vibeAuraHeight * dpr);
-    if (vibeWavesCtx) {
-      vibeWavesCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // Use optimal DPR clamped to 1.25 for buttery-smooth 120 FPS on mobile
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.25);
+    vibeAuraCanvas.width = Math.round(vibeAuraWidth * dpr);
+    vibeAuraCanvas.height = Math.round(vibeAuraHeight * dpr);
+    if (vibeAuraCtx) {
+      vibeAuraCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
   }
 
@@ -3558,37 +3551,34 @@ function getAudioSpectrumData() {
     if (vibeAuraAnalyser && state.isPlaying) {
       vibeAuraAnalyser.getByteFrequencyData(vibeAuraFreqData);
       bass = (vibeAuraFreqData[0] + vibeAuraFreqData[1] + vibeAuraFreqData[2] + vibeAuraFreqData[3]) / 4 / 255;
-      mids = (vibeAuraFreqData[5] + vibeAuraFreqData[7] + vibeAuraFreqData[9] + vibeAuraFreqData[11]) / 4 / 255;
-      highs = (vibeAuraFreqData[14] + vibeAuraFreqData[18] + vibeAuraFreqData[22]) / 3 / 255;
-      return { bass, mids, highs, pulse: 1.0 + bass * 0.42 };
+      mids = (vibeAuraFreqData[5] + vibeAuraFreqData[7] + vibeAuraFreqData[9]) / 3 / 255;
+      highs = (vibeAuraFreqData[14] + vibeAuraFreqData[18]) / 2 / 255;
+      return { bass, mids, highs, pulse: 1.0 + bass * 0.38 };
     }
   }
 
   if (state.isPlaying) {
     const t = Date.now() * 0.003;
-    const synthBass = Math.max(0, Math.sin(t * 1.5)) * 0.45;
-    const synthMids = Math.max(0, Math.cos(t * 2.1)) * 0.35;
     return {
-      bass: synthBass,
-      mids: synthMids,
-      highs: 0.2,
-      pulse: 1.0 + Math.sin(t) * 0.08 + Math.sin(t * 1.8) * 0.04
+      bass: Math.max(0, Math.sin(t * 1.5)) * 0.35,
+      mids: Math.max(0, Math.cos(t * 2.1)) * 0.25,
+      highs: 0.15,
+      pulse: 1.0 + Math.sin(t) * 0.07 + Math.sin(t * 1.8) * 0.03
     };
   }
 
-  // Paused idle state - gentle breathing
   const t = Date.now() * 0.0012;
   return {
-    bass: 0.05,
-    mids: 0.05,
-    highs: 0.05,
-    pulse: 1.0 + Math.sin(t) * 0.03
+    bass: 0.04,
+    mids: 0.04,
+    highs: 0.04,
+    pulse: 1.0 + Math.sin(t) * 0.025
   };
 }
 
 function renderAuraFrame() {
   vibeAuraAnimFrame = requestAnimationFrame(renderAuraFrame);
-  if (!vibeAuraCtx || !vibeWavesCtx) return;
+  if (!vibeAuraCtx) return;
 
   const vibeView = document.getElementById('view-vibe');
   if (vibeView && !vibeView.classList.contains('active')) return;
@@ -3603,23 +3593,21 @@ function renderAuraFrame() {
     auraCurrentColors[i].b += (auraTargetColors[i].b - auraCurrentColors[i].b) * 0.045;
   }
 
-  // 1. Render Diffuse Color Cloud on vibeAuraCanvas (downscaled & blurred)
-  const bgW = vibeAuraCanvas.width;
-  const bgH = vibeAuraCanvas.height;
-  vibeAuraCtx.clearRect(0, 0, bgW, bgH);
+  vibeAuraCtx.clearRect(0, 0, vibeAuraWidth, vibeAuraHeight);
 
+  // 1. Soft Ambient Radial Glow Cloud (Zero CSS blur required!)
   AURA_BLOBS.forEach((blob) => {
-    const offsetX = Math.sin(now * blob.speedX + blob.phaseX) * (bgW * 0.20);
-    const offsetY = Math.cos(now * blob.speedY + blob.phaseY) * (bgH * 0.16);
-    const cx = bgW * blob.baseX + offsetX;
-    const cy = bgH * blob.baseY + offsetY;
-    const radius = Math.min(bgW, bgH) * blob.radiusRatio * audio.pulse;
+    const offsetX = Math.sin(now * blob.speedX + blob.phaseX) * (vibeAuraWidth * 0.16);
+    const offsetY = Math.cos(now * blob.speedY + blob.phaseY) * (vibeAuraHeight * 0.12);
+    const cx = vibeAuraWidth * blob.baseX + offsetX;
+    const cy = vibeAuraHeight * blob.baseY + offsetY;
+    const radius = Math.min(vibeAuraWidth, vibeAuraHeight) * blob.radiusRatio * audio.pulse;
 
     const col = auraCurrentColors[blob.colorIdx] || auraCurrentColors[0];
-    const grad = vibeAuraCtx.createRadialGradient(cx, cy, radius * 0.05, cx, cy, radius);
-    grad.addColorStop(0, `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, 0.88)`);
-    grad.addColorStop(0.4, `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, 0.50)`);
-    grad.addColorStop(0.75, `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, 0.18)`);
+    const grad = vibeAuraCtx.createRadialGradient(cx, cy, radius * 0.08, cx, cy, radius);
+    grad.addColorStop(0, `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, ${blob.alpha})`);
+    grad.addColorStop(0.35, `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, ${blob.alpha * 0.55})`);
+    grad.addColorStop(0.70, `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, ${blob.alpha * 0.18})`);
     grad.addColorStop(1, `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, 0)`);
 
     vibeAuraCtx.fillStyle = grad;
@@ -3628,81 +3616,76 @@ function renderAuraFrame() {
     vibeAuraCtx.fill();
   });
 
-  // 2. Render Sharp Luminous Visualizer Bands on vibeWavesCanvas
-  vibeWavesCtx.clearRect(0, 0, vibeAuraWidth, vibeAuraHeight);
-
-  // Center around the vibe play button animation
+  // 2. High-Performance Two-Pass Luminous Visualizer Bands
   const centerX = vibeAuraWidth * 0.5;
-  const centerY = 110; // Corresponds to the vertical position of .vibe-animation in vibe-container
+  const centerY = 110;
 
-  // A. Draw Concentric Pulsing Contour Rings
+  // A. Concentric Pulsing Contour Rings
   AURA_RINGS.forEach((ring, idx) => {
     const col = auraCurrentColors[ring.colorIdx] || auraCurrentColors[0];
     const baseR = ring.baseRadius * audio.pulse;
-    const numPoints = 80;
+    const numPoints = 64; // Optimized point count for 120 FPS
     const step = (Math.PI * 2) / numPoints;
 
-    vibeWavesCtx.save();
-    vibeWavesCtx.beginPath();
-
+    vibeAuraCtx.beginPath();
     for (let i = 0; i <= numPoints; i++) {
       const theta = i * step;
-      // Harmonic undulating wave equations
       const wave1 = Math.sin(theta * 2 + now * ring.speed1 + idx * 1.3) * ring.amp1;
       const wave2 = Math.cos(theta * 3 - now * ring.speed2 + idx * 2.1) * ring.amp2;
-      // Audio frequency ripple perturbation
-      const audioRipple = Math.sin(theta * 5 + now * 0.005) * (audio.mids * 18 + audio.bass * 12);
+      const audioRipple = Math.sin(theta * 5 + now * 0.005) * (audio.mids * 14 + audio.bass * 10);
       const r = baseR + wave1 + wave2 + audioRipple;
 
       const px = centerX + Math.cos(theta) * r;
-      const py = centerY + Math.sin(theta) * (r * 0.88); // Slightly oval perspective
+      const py = centerY + Math.sin(theta) * (r * 0.88);
 
-      if (i === 0) vibeWavesCtx.moveTo(px, py);
-      else vibeWavesCtx.lineTo(px, py);
+      if (i === 0) vibeAuraCtx.moveTo(px, py);
+      else vibeAuraCtx.lineTo(px, py);
     }
+    vibeAuraCtx.closePath();
 
-    vibeWavesCtx.closePath();
+    // Pass 1: Soft Outer Glow Halo (zero shadowBlur overhead)
+    vibeAuraCtx.strokeStyle = `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, ${ring.alpha * 0.28})`;
+    vibeAuraCtx.lineWidth = ring.coreWidth * 3.2;
+    vibeAuraCtx.stroke();
 
-    const dynamicAlpha = Math.min(0.9, ring.alpha + audio.bass * 0.3);
-    vibeWavesCtx.strokeStyle = `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, ${dynamicAlpha})`;
-    vibeWavesCtx.lineWidth = ring.lineWidth + (audio.bass > 0.4 ? 0.8 : 0);
-    vibeWavesCtx.shadowColor = `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, 0.85)`;
-    vibeWavesCtx.shadowBlur = 12 + Math.round(audio.bass * 10);
-    vibeWavesCtx.stroke();
-    vibeWavesCtx.restore();
+    // Pass 2: Crisp Bright Core
+    vibeAuraCtx.strokeStyle = `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, ${Math.min(0.95, ring.alpha + audio.bass * 0.25)})`;
+    vibeAuraCtx.lineWidth = ring.coreWidth;
+    vibeAuraCtx.stroke();
   });
 
-  // B. Draw Flowing Upper Harmonic Wave Ribbons behind "Моя Волна"
+  // B. Upper Flowing Wave Ribbons behind "Моя Волна"
   const waveRibbons = [
-    { y: centerY - 45, speed: 0.0018, freq: 0.009, amp: 16, colorIdx: 0 },
-    { y: centerY + 65, speed: 0.0012, freq: 0.007, amp: 20, colorIdx: 1 }
+    { y: centerY - 45, speed: 0.0016, freq: 0.009, amp: 14, colorIdx: 0 },
+    { y: centerY + 65, speed: 0.0011, freq: 0.007, amp: 18, colorIdx: 1 }
   ];
 
   waveRibbons.forEach((ribbon, rIdx) => {
     const col = auraCurrentColors[ribbon.colorIdx] || auraCurrentColors[0];
-    vibeWavesCtx.save();
-    vibeWavesCtx.beginPath();
-
+    vibeAuraCtx.beginPath();
     const startX = -10;
     const endX = vibeAuraWidth + 10;
-    const stepX = 14;
+    const stepX = 18;
 
     for (let x = startX; x <= endX; x += stepX) {
-      const harmonic1 = Math.sin(x * ribbon.freq + now * ribbon.speed + rIdx) * ribbon.amp;
-      const harmonic2 = Math.cos(x * ribbon.freq * 1.8 - now * ribbon.speed * 0.7) * (ribbon.amp * 0.4);
-      const audioBounce = Math.sin(x * 0.02 + now * 0.006) * (audio.mids * 14 + audio.highs * 8);
-      const y = ribbon.y + harmonic1 + harmonic2 + audioBounce;
+      const h1 = Math.sin(x * ribbon.freq + now * ribbon.speed + rIdx) * ribbon.amp;
+      const h2 = Math.cos(x * ribbon.freq * 1.8 - now * ribbon.speed * 0.7) * (ribbon.amp * 0.35);
+      const audioBounce = Math.sin(x * 0.02 + now * 0.005) * (audio.mids * 10 + audio.highs * 6);
+      const y = ribbon.y + h1 + h2 + audioBounce;
 
-      if (x === startX) vibeWavesCtx.moveTo(x, y);
-      else vibeWavesCtx.lineTo(x, y);
+      if (x === startX) vibeAuraCtx.moveTo(x, y);
+      else vibeAuraCtx.lineTo(x, y);
     }
 
-    vibeWavesCtx.strokeStyle = `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, ${0.35 + audio.mids * 0.3})`;
-    vibeWavesCtx.lineWidth = 1.8;
-    vibeWavesCtx.shadowColor = `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, 0.75)`;
-    vibeWavesCtx.shadowBlur = 10;
-    vibeWavesCtx.stroke();
-    vibeWavesCtx.restore();
+    // Pass 1: Glow
+    vibeAuraCtx.strokeStyle = `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, 0.15)`;
+    vibeAuraCtx.lineWidth = 5.0;
+    vibeAuraCtx.stroke();
+
+    // Pass 2: Core
+    vibeAuraCtx.strokeStyle = `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, ${0.35 + audio.mids * 0.25})`;
+    vibeAuraCtx.lineWidth = 1.6;
+    vibeAuraCtx.stroke();
   });
 }
 

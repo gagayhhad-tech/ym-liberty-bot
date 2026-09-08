@@ -716,16 +716,7 @@ const YandexClient = {
     }
 
     try {
-      const [feedRes, libertyTracks] = await Promise.all([
-        fetch('https://api.music.yandex.net/feed', { headers: this.getHeaders(token) }),
-        this.getLibertyList()
-      ]);
-      const data = await feedRes.json();
-      const feedData = data.result || {};
-      const days = feedData.days || [];
-      const firstDay = days[0] || {};
-      const events = firstDay.events || [];
-
+      const libertyTracks = await this.getLibertyList();
       const extractedTracks = [];
       const seenTrackIds = new Set();
 
@@ -755,94 +746,59 @@ const YandexClient = {
         });
       }
 
-      // Собираем bests IDs из альбомов для bulk-запроса
-      const bestIdsByAlbum = [];
-      for (const ev of events) {
-        if (ev.type === 'tracks' && Array.isArray(ev.tracks)) {
-          ev.tracks.forEach(t => addTrack(t, ev.title || 'Новинка'));
-        } else if (ev.type === 'albums' && Array.isArray(ev.albums)) {
-          for (const alb of ev.albums) {
-            if (Array.isArray(alb.tracks) && alb.tracks.length > 0) {
-              alb.tracks.forEach(t => addTrack(t, alb.title));
-            } else if (Array.isArray(alb.bests) && alb.bests.length > 0) {
-              bestIdsByAlbum.push({ ids: alb.bests.slice(0, 5), albumTitle: alb.title });
+      // 1. Основной источник: new-releases (настоящие новинки)
+      try {
+        const relRes = await fetch('https://api.music.yandex.net/landing3?blocks=new-releases', {
+          headers: this.getHeaders(token)
+        });
+        const relData = await relRes.json();
+        const relBlock = (relData.result?.blocks || []).find(b => b.type === 'new-releases');
+        if (relBlock && Array.isArray(relBlock.entities)) {
+          const albumIds = relBlock.entities.slice(0, 12).map(e => e.data?.id).filter(Boolean);
+          if (albumIds.length > 0) {
+            const albRes = await fetch(
+              `https://api.music.yandex.net/albums?album-ids=${albumIds.join(',')}&with-tracks=true`,
+              { headers: this.getHeaders(token) }
+            );
+            const albData = await albRes.json();
+            for (const alb of (albData.result || [])) {
+              const tracksArr = (alb.volumes || []).flat();
+              tracksArr.slice(0, 2).forEach(t => addTrack(t, alb.title || 'Новинка'));
             }
           }
         }
+      } catch (relErr) {
+        console.warn('Feed new-releases error:', relErr);
       }
 
-      // Bulk-разрешение alb.bests через /tracks
-      if (bestIdsByAlbum.length > 0) {
+      // 2. Дополнение: личные новинки из feed (только type=tracks, только свежие)
+      if (extractedTracks.length < 15) {
         try {
-          const allBestIds = bestIdsByAlbum.flatMap(x => x.ids);
-          const bulkRes = await fetch(
-            `https://api.music.yandex.net/tracks?track-ids=${allBestIds.join(',')}`,
-            { headers: this.getHeaders(token) }
-          );
-          const bulkData = await bulkRes.json();
-          (bulkData.result || []).forEach(t => {
-            const matchGroup = bestIdsByAlbum.find(g => g.ids.map(String).includes(String(t.id)));
-            addTrack(t, matchGroup?.albumTitle || 'Новинка');
-          });
-        } catch (bulkErr) {
-          console.warn('Feed bulk tracks error:', bulkErr);
-        }
-      }
-
-      // Fallback: new-releases landing block
-      if (extractedTracks.length < 8) {
-        try {
-          const relRes = await fetch('https://api.music.yandex.net/landing3?blocks=new-releases', {
+          const feedRes = await fetch('https://api.music.yandex.net/feed', {
             headers: this.getHeaders(token)
           });
-          const relData = await relRes.json();
-          const relBlock = (relData.result?.blocks || []).find(b => b.type === 'new-releases');
-          if (relBlock && Array.isArray(relBlock.entities)) {
-            const albumIds = relBlock.entities.slice(0, 10).map(e => e.data?.id).filter(Boolean);
-            if (albumIds.length > 0) {
-              const albRes = await fetch(
-                `https://api.music.yandex.net/albums?album-ids=${albumIds.join(',')}&with-tracks=true`,
-                { headers: this.getHeaders(token) }
-              );
-              const albData = await albRes.json();
-              for (const alb of (albData.result || [])) {
-                const tracksArr = (alb.volumes || []).flat();
-                tracksArr.slice(0, 3).forEach(t => addTrack(t, alb.title || 'Новинка'));
-              }
+          const feedData = await feedRes.json();
+          const events = feedData.result?.days?.[0]?.events || [];
+          for (const ev of events) {
+            if (ev.type === 'tracks' && Array.isArray(ev.tracks)) {
+              ev.tracks.forEach(t => addTrack(t, ev.title || 'Новинка'));
             }
           }
-        } catch (relErr) {
-          console.warn('Feed new-releases fallback error:', relErr);
-        }
-      }
-
-      // Финальный fallback: chart
-      if (extractedTracks.length < 8) {
-        try {
-          const topRes = await fetch('https://api.music.yandex.net/landing3?blocks=chart&eitherUserId=true', {
-            headers: this.getHeaders(token)
-          });
-          const topData = await topRes.json();
-          const chartBlock = (topData.result?.blocks || []).find(b => b.type === 'chart');
-          if (chartBlock && Array.isArray(chartBlock.entities)) {
-            chartBlock.entities.slice(0, 15).forEach(e => {
-              if (e.data?.track) addTrack(e.data.track, 'Чарт');
-            });
-          }
-        } catch (chartErr) {
-          console.warn('Feed chart fallback error:', chartErr);
+        } catch (feedErr) {
+          console.warn('Feed personal error:', feedErr);
         }
       }
 
       return {
         tracks: extractedTracks.slice(0, 20),
-        generatedPlaylists: feedData.generatedPlaylists || []
+        generatedPlaylists: []
       };
     } catch (e) {
       console.error('getFeed error:', e);
       return { tracks: [], generatedPlaylists: [] };
     }
   },
+
 
   async authDeviceCode() {
     if (isLocal) {

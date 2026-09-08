@@ -1418,4 +1418,265 @@ input[type=range]::-webkit-slider-thumb {
   transition: transform 0.3s ease;
 }
 
+/* ==========================================
+   Home Screen: New Releases (Новинки и премьеры)
+   ========================================== */
+.vibe-new-releases {
+  margin-top: 24px;
+  width: 100%;
+  padding-bottom: 20px;
+}
+
+.releases-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  padding: 0 4px;
+}
+
+.releases-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.releases-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+  letter-spacing: -0.2px;
+}
+
+.releases-subtitle {
+  font-size: 12px;
+  color: var(--text-secondary, #8e8e93);
+}
+
+.releases-refresh-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-secondary, #aaaaaa);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.releases-refresh-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+.releases-refresh-btn:active {
+  transform: scale(0.92);
+}
+
+.releases-refresh-btn.spinning i {
+  animation: spin 0.8s linear infinite;
+}
+
+.releases-carousel {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 2px 14px 2px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+}
+
+.releases-carousel::-webkit-scrollbar {
+  display: none; /* Chrome, Safari */
+}
+
+.release-card {
+  flex: 0 0 142px;
+  width: 142px;
+  scroll-snap-align: start;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 16px;
+  padding: 10px;
+  transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1), background 0.2s ease, border-color 0.2s ease;
+  user-select: none;
+  position: relative;
+}
+
+.release-card:active {
+  transform: scale(0.96);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.release-cover-wrap {
+  width: 122px;
+  height: 122px;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+  background: #1e1e24;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.35);
+  margin-bottom: 10px;
+}
+
+.release-cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.release-card:hover .release-cover-img {
+  transform: scale(1.04);
+}
+
+.release-play-btn {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #ffffff !important;
+  color: #000000 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  opacity: 0.95;
+  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.release-card:active .release-play-btn {
+  transform: scale(1.1);
+  opacity: 1;
+}
+
+.release-play-btn i {
+  font-size: 16px;
+  color: #000000 !important;
+  margin-left: 2px;
+}
+
+.release-badge-tag {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  max-width: 82%;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #ffd700;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.release-liberty-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: linear-gradient(135deg, #00c6ff, #0072ff);
+  color: #fff;
+  font-size: 8px;
+  font-weight: 800;
+  padding: 2px 5px;
+  border-radius: 6px;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 6px rgba(0, 114, 255, 0.4);
+}
+
+.release-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.release-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.release-artist {
+  font-size: 11px;
+  color: var(--text-secondary, #8e8e93);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+/* Skeleton Loading Cards */
+.release-card-skeleton {
+  pointer-events: none;
+}
+
+.skeleton-box {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.05) 25%, rgba(255, 255, 255, 0.1) 37%, rgba(255, 255, 255, 0.05) 63%);
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+  border-radius: 8px;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+/* Crossfade Settings styling */
+.crossfade-card .switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+}
+
+.crossfade-slider-input {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.15);
+  outline: none;
+  margin: 8px 0;
+}
+
+.crossfade-slider-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent-color, #ffd700);
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  transition: transform 0.15s ease;
+}
+
+.crossfade-slider-input::-webkit-slider-thumb:active {
+  transform: scale(1.2);
+}
+
+
 

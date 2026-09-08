@@ -85,6 +85,22 @@
             </div>
           </div>
         </div>
+
+        <!-- Personalized New Releases (Новинки и премьеры) -->
+        <div id="vibe-new-releases" class="vibe-new-releases">
+          <div class="releases-header">
+            <div class="releases-title-group">
+              <h2 class="releases-title">Новинки и премьеры</h2>
+              <span class="releases-subtitle">Свежие треки по вашей коллекции</span>
+            </div>
+            <button id="btn-refresh-releases" class="releases-refresh-btn" aria-label="Обновить новинки" title="Обновить новинки">
+              <i class="bi bi-arrow-clockwise"></i>
+            </button>
+          </div>
+          <div id="vibe-releases-track-list" class="releases-carousel">
+            <!-- Dynamic release cards will be rendered here -->
+          </div>
+        </div>
       </div>
     </main>
 
@@ -292,6 +308,34 @@
                   <div class="eq-freq-wrap">
                     <span class="eq-freq">14 кГц</span>
                     <span class="eq-freq-sub">Воздух</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Crossfade Card -->
+          <div class="setting-item crossfade-card" style="flex-direction: column; align-items: stretch; gap: 12px; margin-top: 14px; background: rgba(255, 255, 255, 0.05); border-radius: 14px; padding: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <span style="font-weight: 600;">Плавный переход (Кроссфейд)</span>
+                <p style="font-size: 12px; color: var(--text-secondary); margin: 2px 0 0 0;">Бесшовное сведение треков</p>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="toggle-crossfade">
+                <span class="slider round"></span>
+              </label>
+            </div>
+            <div id="crossfade-duration-wrap" style="display: none; flex-direction: column; gap: 6px; transition: opacity 0.2s ease;">
+              <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                <span style="color: var(--text-secondary);">Длительность:</span>
+                <span id="crossfade-val" style="font-weight: 600; color: var(--accent-color, #ffd700);">5 сек</span>
+              </div>
+              <input type="range" id="crossfade-slider" min="1" max="12" step="1" value="5" class="crossfade-slider-input" style="width: 100%; accent-color: var(--accent-color, #ffd700); cursor: pointer;">
+              <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-secondary);">
+                <span>1 сек</span>
+                <span>6 сек</span>
+                <span>12 сек</span>
               </div>
             </div>
           </div>
@@ -307,7 +351,7 @@
               </div>
               <div class="about-app-text">
                 <div class="about-app-name">YM Liberty</div>
-                <div id="app-version-label" class="about-app-version">v1.0.2 (Сборка 3)</div>
+                <div id="app-version-label" class="about-app-version">v1.0.3 (Сборка 4)</div>
               </div>
             </div>
             <button id="btn-check-update" class="btn-check-update" aria-label="Проверить обновления">

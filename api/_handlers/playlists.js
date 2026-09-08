@@ -1,15 +1,24 @@
 const axios = require('axios');
 
 module.exports = async function (req, res) {
-  const { token } = req.query;
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
+  const token = req.query.token || req.body?.token || req.headers?.authorization?.replace(/^OAuth\s+/i, '');
 
   if (!token) {
     return res.status(400).json({ error: "No token provided" });
   }
 
   try {
+    const rawToken = String(token).replace(/^OAuth\s+/i, '').replace(/^Bearer\s+/i, '').trim();
     const headers = {
-      'Authorization': `OAuth ${token}`,
+      'Authorization': `OAuth ${rawToken}`,
       'X-Yandex-Music-Client': 'YandexMusicAndroid/24023231'
     };
 
@@ -20,8 +29,30 @@ module.exports = async function (req, res) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
+    if (req.method === 'POST') {
+      const { action, title, kind } = req.body || req.query;
+      if (action === 'create') {
+        const createRes = await axios.post(`https://api.music.yandex.net/users/${uid}/playlists/create`, 
+          new URLSearchParams({ title: title || '', visibility: 'private' }).toString(),
+          { headers: { ...headers, 'Content-Type': 'application/x-www-form-urlencoded' } }
+        );
+        return res.json(createRes.data?.result || {});
+      }
+      if (action === 'rename') {
+        const renameRes = await axios.post(`https://api.music.yandex.net/users/${uid}/playlists/${kind}/name`,
+          new URLSearchParams({ value: title || '' }).toString(),
+          { headers: { ...headers, 'Content-Type': 'application/x-www-form-urlencoded' } }
+        );
+        return res.json(renameRes.data?.result || {});
+      }
+    }
+
     const plRes = await axios.get(`https://api.music.yandex.net/users/${uid}/playlists/list`, { headers });
     
+    if (req.query.raw) {
+      return res.json({ playlists: plRes.data?.result || [] });
+    }
+
     if (!plRes.data.result) {
       return res.json({ playlists: [] });
     }

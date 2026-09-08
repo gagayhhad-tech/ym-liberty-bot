@@ -1,4 +1,4 @@
-﻿const handlers = {
+const handlers = {
   version: require('./_handlers/version'),
   stream: require('./_handlers/stream'),
   library: require('./_handlers/library'),
@@ -19,6 +19,7 @@
   vibe: require('./_handlers/vibe'),
   test: require('./_handlers/test'),
   libertyList: require('./_handlers/libertyList'),
+  feed: require('./_handlers/feed'),
 };
 
 module.exports = async (req, res) => {

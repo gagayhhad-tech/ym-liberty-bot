@@ -414,7 +414,7 @@ function renderTracks() {
     
     const artist = track.artists || 'Unknown Artist';
     let coverUrl = track.coverUri || '/favicon.png';
-    if (coverUrl.includes('%%')) coverUrl = `https://${coverUrl.replace('%%', '400x400')}`;
+    if (coverUrl.includes('%%')) coverUrl = `https://${coverUrl.replace('%%', '200x200')}`;
     if (!coverUrl.startsWith('http') && coverUrl !== '/favicon.png') {
       coverUrl = `https://${coverUrl}`;
     }
@@ -422,7 +422,7 @@ function renderTracks() {
     const badgeHtml = track.isLiberty ? `<span class="liberty-badge"><i class="bi bi-gem"></i></span>` : (isExplicit ? `<span class="explicit-badge">E</span>` : '');
     div._trackData = track;
     div.innerHTML = `
-      <img src="${coverUrl}" alt="cover">
+      <img src="${coverUrl}" loading="lazy" alt="cover">
       <div class="track-info">
         <div class="track-title"><span class="track-title-text">${track.title}</span>${badgeHtml}</div>
         <div class="track-artist">${artist}</div>
@@ -573,8 +573,155 @@ async function preloadNextTrack() {
   }
 }
 
+// --- Crossfade Transition Engine (Dual Player Seamless Mixing) ---
+let crossfadeEnabled = localStorage.getItem('ym_crossfade_enabled') !== 'false';
+let crossfadeSec = parseInt(localStorage.getItem('ym_crossfade_sec') || '5', 10);
+if (isNaN(crossfadeSec) || crossfadeSec < 1 || crossfadeSec > 12) crossfadeSec = 5;
+
+let isCrossfading = false;
+let crossfadeInterval = null;
+let crossfadeTimer = null;
+
+function resetCrossfadeState() {
+  if (crossfadeInterval) {
+    clearInterval(crossfadeInterval);
+    crossfadeInterval = null;
+  }
+  if (crossfadeTimer) {
+    clearTimeout(crossfadeTimer);
+    crossfadeTimer = null;
+  }
+  isCrossfading = false;
+  try {
+    playerA.volume = 1;
+    playerB.volume = 1;
+  } catch (e) {}
+}
+
+function checkAndTriggerCrossfade() {
+  if (!crossfadeEnabled || isCrossfading || !state.isPlaying) return;
+  if (!activePlayer || !activePlayer.duration || isNaN(activePlayer.duration)) return;
+  if (activePlayer.duration < (crossfadeSec * 1.8)) return;
+
+  const remaining = activePlayer.duration - activePlayer.currentTime;
+  if (remaining <= crossfadeSec && remaining > 0.4) {
+    if (preloadedTrack && preloadPlayer && preloadPlayer.src && preloadPlayer.readyState >= 2) {
+      startCrossfade(remaining);
+    }
+  }
+}
+
+async function startCrossfade(durationSec) {
+  if (isCrossfading) return;
+  isCrossfading = true;
+
+  const outgoingPlayer = activePlayer;
+  const incomingPlayer = preloadPlayer;
+  const nextTrackInfo = preloadedTrack;
+
+  try {
+    incomingPlayer.volume = 0;
+    await incomingPlayer.play();
+  } catch (e) {
+    console.warn("[Crossfade] Failed to start incoming player:", e);
+    resetCrossfadeState();
+    return;
+  }
+
+  const startTime = Date.now();
+  const totalMs = Math.max(durationSec * 1000, 800);
+
+  crossfadeInterval = setInterval(() => {
+    if (!isCrossfading || outgoingPlayer !== activePlayer) {
+      clearInterval(crossfadeInterval);
+      return;
+    }
+    const elapsed = Date.now() - startTime;
+    const progress = Math.min(Math.max(elapsed / totalMs, 0), 1);
+
+    outgoingPlayer.volume = Math.max(1 - progress, 0);
+    incomingPlayer.volume = Math.min(progress, 1);
+
+    if (progress >= 1) {
+      finishCrossfade(outgoingPlayer, incomingPlayer, nextTrackInfo);
+    }
+  }, 50);
+
+  crossfadeTimer = setTimeout(() => {
+    if (isCrossfading && outgoingPlayer === activePlayer) {
+      finishCrossfade(outgoingPlayer, incomingPlayer, nextTrackInfo);
+    }
+  }, totalMs + 200);
+}
+
+function finishCrossfade(outgoingPlayer, incomingPlayer, nextTrackInfo) {
+  if (crossfadeInterval) clearInterval(crossfadeInterval);
+  if (crossfadeTimer) clearTimeout(crossfadeTimer);
+  crossfadeInterval = null;
+  crossfadeTimer = null;
+
+  if (!isCrossfading) return;
+
+  try {
+    outgoingPlayer.pause();
+    outgoingPlayer.currentTime = 0;
+    outgoingPlayer.removeAttribute('src');
+    outgoingPlayer.volume = 1;
+  } catch (e) {}
+
+  try {
+    incomingPlayer.volume = 1;
+  } catch (e) {}
+
+  // Swap dual players
+  const temp = activePlayer;
+  activePlayer = preloadPlayer;
+  preloadPlayer = temp;
+
+  isCrossfading = false;
+  preloadedTrack = null;
+  preloadPromise = null;
+
+  // Advance queue & stats
+  if (state.queueMode === 'vibe') {
+    state.queueIndex++;
+    if (state.queueIndex >= state.queue.length) {
+      fetchMoreVibeTracks().catch(() => {});
+    }
+    if (nextTrackInfo) {
+      state.vibeHistory = state.vibeHistory || new Set();
+      state.vibeHistory.add(String(nextTrackInfo.id));
+      if (typeof saveVibeHistory === 'function') saveVibeHistory();
+      sendFeedback('trackStarted', nextTrackInfo.id, 0);
+      if (typeof addTrackToCloudSync === 'function') {
+        addTrackToCloudSync(nextTrackInfo.id, nextTrackInfo.track?.albums?.[0]?.id || 0);
+      }
+    }
+  } else {
+    if (state.isShuffle) {
+      state.queueIndex = (state.nextShuffleIndex !== undefined && state.nextShuffleIndex !== null)
+        ? state.nextShuffleIndex
+        : Math.floor(Math.random() * state.queue.length);
+      state.nextShuffleIndex = null;
+    } else {
+      state.queueIndex++;
+      if (state.queueIndex >= state.queue.length) state.queueIndex = 0;
+    }
+  }
+
+  const targetTrack = nextTrackInfo || state.queue[state.queueIndex];
+  if (targetTrack) {
+    updateTrackUI(targetTrack);
+  }
+
+  state.isPlaying = true;
+  updatePlayButtons();
+  setTimeout(preloadNextTrack, 600);
+}
+
 let isNavigating = false;
 async function playNext(isUserSkip = true) {
+  resetCrossfadeState();
   if (isNavigating) return;
   isNavigating = true;
   setTimeout(() => isNavigating = false, 300);
@@ -623,6 +770,7 @@ async function playNext(isUserSkip = true) {
 }
 
 async function playPrev() {
+  resetCrossfadeState();
   if (isNavigating) return;
   isNavigating = true;
   setTimeout(() => isNavigating = false, 300);
@@ -685,6 +833,7 @@ function playQueueTrack(track) {
 }
 
 async function playTrack(id, title, artist, cover, explicit, isLiberty, artistId, rawTrack) {
+  resetCrossfadeState();
   const idStr = String(id);
   const trackInfo = { id: idStr, title, artist, cover, explicit, isLiberty, artistId, track: rawTrack };
   updateTrackUI(trackInfo);
@@ -822,7 +971,13 @@ window.handleMediaAction = function(action) {
   } else if (action === 'play') {
     if (!state.isPlaying) handlePlayToggle();
   } else if (action === 'pause') {
-    if (state.isPlaying) handlePlayToggle();
+    try {
+      activePlayer.pause();
+      playerA.pause();
+      playerB.pause();
+    } catch(e) {}
+    state.isPlaying = false;
+    updatePlayButtons();
   } else if (action === 'next') {
     playNext();
   } else if (action === 'prev') {
@@ -1140,6 +1295,7 @@ function bindAudioPlayerEvents(player) {
   player.addEventListener('timeupdate', (e) => {
     if (e.target !== activePlayer) return;
     if (typeof recordListeningProgress === 'function') recordListeningProgress();
+    checkAndTriggerCrossfade();
   });
   player.addEventListener('durationchange', (e) => {
     if (e.target !== activePlayer) return;
@@ -1147,6 +1303,7 @@ function bindAudioPlayerEvents(player) {
   });
   player.addEventListener('ended', (e) => {
     if (e.target !== activePlayer) return;
+    if (isCrossfading) return; // Crossfade transition is in progress
     const dur = activePlayer.duration || activePlayer.currentTime;
     if (dur && lastAudioSampleTime !== null && dur > lastAudioSampleTime) {
       const rem = dur - lastAudioSampleTime;
@@ -1182,6 +1339,7 @@ function formatTime(seconds) {
 
 function updateProgress() {
   if (state.isPlaying && activePlayer && activePlayer.duration && !isNaN(activePlayer.duration)) {
+    checkAndTriggerCrossfade();
     const current = activePlayer.currentTime || 0;
     const duration = activePlayer.duration;
     const percent = (current / duration) * 100;
@@ -1528,7 +1686,7 @@ function renderSearchResults(data) {
       const isExplicit = t.explicit || t.contentWarning === 'explicit';
       const badgeHtml = t.isLiberty ? `<span class="liberty-badge"><i class="bi bi-gem"></i></span>` : (isExplicit ? `<span class="explicit-badge">E</span>` : '');
       div.innerHTML = `
-        <img src="${t.coverUri || '/favicon.png'}" alt="cover">
+        <img src="${t.coverUri || '/favicon.png'}" loading="lazy" alt="cover">
         <div class="track-info">
           <div class="track-title"><span class="track-title-text">${t.title}</span>${badgeHtml}</div>
           <div class="track-artist">${t.artists}</div>
@@ -1645,7 +1803,7 @@ async function openAlbum(id, title, coverUri) {
       const badgeHtml = t.isLiberty ? `<span class="liberty-badge"><i class="bi bi-gem"></i></span>` : (isExplicit ? `<span class="explicit-badge">E</span>` : '');
       div._trackData = t;
       div.innerHTML = `
-        <img src="${t.coverUri || '/favicon.png'}" alt="cover">
+        <img src="${t.coverUri || '/favicon.png'}" loading="lazy" alt="cover">
         <div class="track-info">
           <div class="track-title"><span class="track-title-text">${t.title}</span>${badgeHtml}</div>
           <div class="track-artist">${t.artists}</div>
@@ -2858,20 +3016,56 @@ function initEqualizerAndQualityUI() {
       showToast(`Качество аудио: ${q} kbps`);
     });
   }
+
+  // Crossfade Setting
+  const toggleCrossfade = document.getElementById('toggle-crossfade');
+  const crossfadeDurationWrap = document.getElementById('crossfade-duration-wrap');
+  const crossfadeSlider = document.getElementById('crossfade-slider');
+  const crossfadeVal = document.getElementById('crossfade-val');
+
+  if (toggleCrossfade) {
+    toggleCrossfade.checked = crossfadeEnabled;
+    if (crossfadeDurationWrap) {
+      crossfadeDurationWrap.style.display = crossfadeEnabled ? 'flex' : 'none';
+    }
+    toggleCrossfade.addEventListener('change', () => {
+      crossfadeEnabled = toggleCrossfade.checked;
+      localStorage.setItem('ym_crossfade_enabled', crossfadeEnabled ? 'true' : 'false');
+      if (crossfadeDurationWrap) {
+        crossfadeDurationWrap.style.display = crossfadeEnabled ? 'flex' : 'none';
+      }
+      showToast(crossfadeEnabled ? `Кроссфейд включен (${crossfadeSec} сек)` : 'Кроссфейд отключен');
+    });
+  }
+
+  if (crossfadeSlider) {
+    crossfadeSlider.value = crossfadeSec;
+    if (crossfadeVal) crossfadeVal.textContent = `${crossfadeSec} сек`;
+    crossfadeSlider.addEventListener('input', () => {
+      crossfadeSec = parseInt(crossfadeSlider.value, 10);
+      if (crossfadeVal) crossfadeVal.textContent = `${crossfadeSec} сек`;
+    });
+    crossfadeSlider.addEventListener('change', () => {
+      crossfadeSec = parseInt(crossfadeSlider.value, 10);
+      localStorage.setItem('ym_crossfade_sec', String(crossfadeSec));
+      if (crossfadeVal) crossfadeVal.textContent = `${crossfadeSec} сек`;
+      showToast(`Длительность кроссфейда: ${crossfadeSec} сек`);
+    });
+  }
 }
 
 // ==========================================
 // In-App Auto-Update System (Vercel Host)
 // ==========================================
 function getAppVersionInfo() {
-  let versionCode = 3;
-  let versionName = '1.0.2';
+  let versionCode = 4;
+  let versionName = '1.0.3';
   if (window.AndroidBridge) {
     if (typeof window.AndroidBridge.getVersionCode === 'function') {
-      try { versionCode = window.AndroidBridge.getVersionCode() || 3; } catch (e) {}
+      try { versionCode = window.AndroidBridge.getVersionCode() || 4; } catch (e) {}
     }
     if (typeof window.AndroidBridge.getVersionName === 'function') {
-      try { versionName = window.AndroidBridge.getVersionName() || '1.0.2'; } catch (e) {}
+      try { versionName = window.AndroidBridge.getVersionName() || '1.0.3'; } catch (e) {}
     }
   }
   return { versionCode, versionName };
@@ -3055,12 +3249,136 @@ function initAppUpdater() {
   }, 3500);
 }
 
+// ==========================================
+// Home Screen: Personalized New Releases (Новинки и Премьеры)
+// ==========================================
+let homeReleasesCache = null;
+let homeReleasesLoading = false;
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+async function loadHomeNewReleases(force = false) {
+  const container = document.getElementById('vibe-releases-track-list');
+  const refreshBtn = document.getElementById('btn-refresh-releases');
+  if (!container) return;
+
+  if (homeReleasesLoading) return;
+  if (!force && homeReleasesCache && homeReleasesCache.length > 0) {
+    renderHomeReleases(homeReleasesCache);
+    return;
+  }
+
+  homeReleasesLoading = true;
+  if (refreshBtn) refreshBtn.classList.add('spinning');
+
+  // Render Skeleton Placeholders
+  container.innerHTML = Array.from({ length: 6 }).map(() => `
+    <div class="release-card release-card-skeleton">
+      <div class="release-cover-wrap skeleton-box"></div>
+      <div class="release-meta">
+        <div class="skeleton-box" style="height: 14px; width: 85%; margin-bottom: 6px;"></div>
+        <div class="skeleton-box" style="height: 11px; width: 60%;"></div>
+      </div>
+    </div>
+  `).join('');
+
+  try {
+    const data = await YandexClient.getFeed(state.token);
+    const tracks = (data && Array.isArray(data.tracks)) ? data.tracks : [];
+    
+    if (tracks.length > 0) {
+      homeReleasesCache = tracks;
+      renderHomeReleases(tracks);
+    } else {
+      container.innerHTML = `
+        <div style="padding: 24px 16px; color: var(--text-secondary); font-size: 13px; width: 100%; text-align: center;">
+          Новинки формируются на основе вашей коллекции. Включите Мою Волну!
+        </div>
+      `;
+    }
+  } catch (err) {
+    console.warn("Failed to load new releases:", err);
+    if (!homeReleasesCache) {
+      container.innerHTML = `
+        <div style="padding: 24px 16px; color: var(--text-secondary); font-size: 13px; width: 100%; text-align: center;">
+          Не удалось загрузить новинки
+        </div>
+      `;
+    }
+  } finally {
+    homeReleasesLoading = false;
+    if (refreshBtn) refreshBtn.classList.remove('spinning');
+  }
+}
+
+function renderHomeReleases(tracks) {
+  const container = document.getElementById('vibe-releases-track-list');
+  if (!container) return;
+
+  container.innerHTML = '';
+  tracks.forEach((t, idx) => {
+    const card = document.createElement('div');
+    card.className = 'release-card';
+    card.setAttribute('data-track-id', t.id);
+
+    const coverUrl = t.coverUri || '/favicon.png';
+    let shortTag = t.source || 'Новинка';
+    if (shortTag.includes(':')) shortTag = shortTag.split(':')[0].trim();
+    if (shortTag.length > 15) shortTag = shortTag.slice(0, 14) + '…';
+    const tagBadge = shortTag ? `<span class="release-badge-tag">${escapeHtml(shortTag)}</span>` : '';
+    const libertyBadge = t.isLiberty ? `<span class="release-liberty-badge">LIBERTY</span>` : '';
+
+    card.innerHTML = `
+      <div class="release-cover-wrap">
+        <img src="${coverUrl}" class="release-cover-img" loading="lazy" alt="${escapeHtml(t.title)}">
+        <div class="release-play-btn"><i class="bi bi-play-fill"></i></div>
+        ${tagBadge}
+        ${libertyBadge}
+      </div>
+      <div class="release-meta">
+        <div class="release-title" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</div>
+        <div class="release-artist" title="${escapeHtml(t.artists)}">${escapeHtml(t.artists)}</div>
+      </div>
+    `;
+
+    card.addEventListener('click', () => {
+      state.queue = [...tracks];
+      state.queueIndex = idx;
+      state.queueMode = 'feed';
+      updatePlaybackContextHeader('НОВИНКИ И ПРЕМЬЕРЫ', t.title);
+      playQueueTrack(t);
+      showToast(`Играет: ${t.title}`);
+    });
+
+    container.appendChild(card);
+  });
+}
+
+function initHomeNewReleases() {
+  const refreshBtn = document.getElementById('btn-refresh-releases');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      loadHomeNewReleases(true);
+    });
+  }
+  loadHomeNewReleases();
+}
+
 // Initialize on DOM load and user interaction
 document.addEventListener('DOMContentLoaded', () => {
   initVibeMoodChips();
   updateWaveStatsDisplay();
   initEqualizerAndQualityUI();
   initAppUpdater();
+  initHomeNewReleases();
 });
 
 // Also initialize immediately in case DOM is already ready
@@ -3069,6 +3387,7 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
   updateWaveStatsDisplay();
   initEqualizerAndQualityUI();
   initAppUpdater();
+  initHomeNewReleases();
 }
 
 // Lazy audio context unlock on first user click/touch

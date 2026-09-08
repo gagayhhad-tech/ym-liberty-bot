@@ -500,6 +500,15 @@ const YandexClient = {
   },
 
   async getUserPlaylistsRaw(token) {
+    if (isLocal) {
+      try {
+        const res = await fetch(`/api/playlists?raw=1&token=${encodeURIComponent(token || '')}`);
+        const data = await res.json();
+        return data.playlists || [];
+      } catch(e) {
+        return [];
+      }
+    }
     const uid = await this.getUid(token);
     const res = await fetch(`https://api.music.yandex.net/users/${uid}/playlists/list`, {
       headers: this.getHeaders(token)
@@ -509,6 +518,18 @@ const YandexClient = {
   },
 
   async createPrivatePlaylist(title, token) {
+    if (isLocal) {
+      try {
+        const res = await fetch('/api/playlists', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'create', title, token })
+        });
+        return res.json();
+      } catch(e) {
+        return null;
+      }
+    }
     const uid = await this.getUid(token);
     const params = new URLSearchParams();
     params.append('title', title);
@@ -526,6 +547,18 @@ const YandexClient = {
   },
 
   async renamePlaylist(kind, newTitle, token) {
+    if (isLocal) {
+      try {
+        const res = await fetch('/api/playlists', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'rename', kind, title: newTitle, token })
+        });
+        return res.json();
+      } catch(e) {
+        return null;
+      }
+    }
     const uid = await this.getUid(token);
     const params = new URLSearchParams();
     params.append('value', newTitle);
@@ -674,6 +707,91 @@ const YandexClient = {
       body: `track-ids=${trackId}`
     });
     return { success: res.ok };
+  },
+
+  async getFeed(token) {
+    if (isLocal) {
+      const res = await fetch(`/api/feed?token=${encodeURIComponent(token || '')}`);
+      return res.json();
+    }
+
+    try {
+      const [feedRes, libertyTracks] = await Promise.all([
+        fetch('https://api.music.yandex.net/feed', { headers: this.getHeaders(token) }),
+        this.getLibertyList()
+      ]);
+      const data = await feedRes.json();
+      const feedData = data.result || {};
+      const days = feedData.days || [];
+      const firstDay = days[0] || {};
+      const events = firstDay.events || [];
+
+      const extractedTracks = [];
+      const seenTrackIds = new Set();
+
+      function addTrack(t, source = 'Новинка') {
+        if (!t || !t.id) return;
+        const idStr = String(t.id);
+        if (seenTrackIds.has(idStr)) return;
+        seenTrackIds.add(idStr);
+
+        const cover = t.coverUri
+          ? 'https://' + t.coverUri.replace('%%', '400x400')
+          : t.albums?.[0]?.coverUri
+          ? 'https://' + t.albums[0].coverUri.replace('%%', '400x400')
+          : '';
+
+        extractedTracks.push({
+          id: idStr,
+          title: t.title,
+          version: t.version || '',
+          artists: (t.artists || []).map(a => a.name).join(', '),
+          durationMs: t.durationMs || 0,
+          coverUri: cover,
+          explicit: Boolean(t.contentWarning === 'explicit' || t.explicit),
+          isLiberty: Boolean(libertyTracks && libertyTracks[idStr]),
+          source: source,
+          track: t
+        });
+      }
+
+      for (const ev of events) {
+        if (ev.type === 'tracks' && Array.isArray(ev.tracks)) {
+          ev.tracks.forEach(t => addTrack(t, ev.title || 'Новинка'));
+        } else if (ev.type === 'albums' && Array.isArray(ev.albums)) {
+          for (const alb of ev.albums) {
+            if (Array.isArray(alb.tracks)) {
+              alb.tracks.forEach(t => addTrack(t, alb.title));
+            }
+          }
+        }
+      }
+
+      if (extractedTracks.length < 8) {
+        try {
+          const topRes = await fetch('https://api.music.yandex.net/landing3?blocks=chart&eitherUserId=true', {
+            headers: this.getHeaders(token)
+          });
+          const topData = await topRes.json();
+          const chartBlock = (topData.result?.blocks || []).find(b => b.type === 'chart');
+          if (chartBlock && Array.isArray(chartBlock.entities)) {
+            chartBlock.entities.slice(0, 15).forEach(e => {
+              if (e.data?.track) addTrack(e.data.track, 'Чарт');
+            });
+          }
+        } catch (chartErr) {
+          console.warn('Feed chart fallback error:', chartErr);
+        }
+      }
+
+      return {
+        tracks: extractedTracks.slice(0, 20),
+        generatedPlaylists: feedData.generatedPlaylists || []
+      };
+    } catch (e) {
+      console.error('getFeed error:', e);
+      return { tracks: [], generatedPlaylists: [] };
+    }
   },
 
   async authDeviceCode() {

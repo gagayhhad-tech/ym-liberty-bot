@@ -1,4 +1,4 @@
-﻿module.exports = async (req, res) => {
+module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -9,8 +9,8 @@
   }
 
   const versionData = {
-    versionCode: 2,
-    versionName: "1.0.1",
+    versionCode: 3,
+    versionName: "1.0.2",
     apkUrl: "https://ym-liberty-bot.vercel.app/YMLiberty.apk",
     changelog: "• Исправлен фоновый учет времени прослушивания («В потоке» и «Минут всего»)\n• Исправлена навигация жестов Android и позиция мини-плеера\n• Добавлено запоминание треков в Моей Волне (без повторов)\n• Добавлена система автообновления приложения",
     releaseDate: "2026-09-08",

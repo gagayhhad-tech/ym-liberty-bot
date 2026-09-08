@@ -4,12 +4,12 @@ const cors = require('cors');
 
 const app = express();
 
-const libraryHandler = require('./api/library');
-const streamHandler = require('./api/stream');
-const vibeHandler = require('./api/vibe');
-const searchHandler = require('./api/search');
-const artistHandler = require('./api/artist');
-const feedbackHandler = require('./api/feedback');
+const libraryHandler = require('./api/_handlers/library');
+const streamHandler = require('./api/_handlers/stream');
+const vibeHandler = require('./api/_handlers/vibe');
+const searchHandler = require('./api/_handlers/search');
+const artistHandler = require('./api/_handlers/artist');
+const feedbackHandler = require('./api/_handlers/feedback');
 
 const PORT = process.env.PORT || 3000;
 
@@ -31,7 +31,7 @@ app.post('/api/feedback', feedbackHandler);
 const apiRoutes = ['auth', 'library', 'search', 'popular', 'stream', 'proxy-audio', 'like', 'playlists', 'playlist', 'album', 'playlist-add', 'bot', 'report', 'version'];
 
 apiRoutes.forEach(route => {
-  const handler = require(path.join(__dirname, 'api', `${route}.js`));
+  const handler = require(path.join(__dirname, 'api', '_handlers', `${route}.js`));
   // Vercel serverless functions handle both GET and POST usually,
   // so we use 'use' or both get/post to mimic that behavior
   app.all(`/api/${route}`, async (req, res) => {

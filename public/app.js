@@ -4005,17 +4005,19 @@ function initSwipeGestures() {
 
 // Initialize on DOM load and user interaction
 document.addEventListener('DOMContentLoaded', () => {
-  // Vibe Search Button -> Open Search
+  // Global Search Triggers (Spotify & Yandex Music style in top-right)
+  const handleOpenSearch = () => {
+    navigateToView('view-search');
+    dom.navBtns.forEach(b => b.classList.remove('active'));
+    setTimeout(() => {
+      const input = document.getElementById('search-input');
+      if (input) input.focus();
+    }, 120);
+  };
   const btnVibeSearch = document.getElementById('btn-vibe-search');
-  if (btnVibeSearch) {
-    btnVibeSearch.addEventListener('click', () => {
-      navigateToView('view-search');
-      setTimeout(() => {
-        const input = document.getElementById('search-input');
-        if (input) input.focus();
-      }, 100);
-    });
-  }
+  if (btnVibeSearch) btnVibeSearch.addEventListener('click', handleOpenSearch);
+  const btnLibSearch = document.getElementById('btn-library-search');
+  if (btnLibSearch) btnLibSearch.addEventListener('click', handleOpenSearch);
 
   // Search Back Button -> Return to previous view
   const btnCloseSearch = document.getElementById('btn-close-search');

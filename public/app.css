@@ -293,7 +293,7 @@ input:checked + .slider:before {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 25%;
+  flex: 1;
   height: calc(var(--nav-base-height) - 6px);
   cursor: pointer;
   transition: color 0.2s;
@@ -1800,4 +1800,27 @@ input[type=range]::-webkit-slider-thumb {
   transform: scale(0.95);
   background: var(--accent-color);
   color: #000;
+}
+
+/* Top Search Button (Spotify & Yandex Music style) */
+.top-search-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.2s ease;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+.top-search-btn:active {
+  transform: scale(0.9);
+  background: rgba(255, 255, 255, 0.2);
 }

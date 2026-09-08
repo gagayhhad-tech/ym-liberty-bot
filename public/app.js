@@ -3118,8 +3118,8 @@ function initEqualizerAndQualityUI() {
 // In-App Auto-Update System (Vercel Host)
 // ==========================================
 function getAppVersionInfo() {
-  let versionCode = 12;
-  let versionName = '1.0.11';
+  let versionCode = 13;
+  let versionName = '1.0.12';
   if (window.AndroidBridge) {
     if (typeof window.AndroidBridge.getVersionCode === 'function') {
       try { versionCode = window.AndroidBridge.getVersionCode() || 4; } catch (e) {}
@@ -3201,6 +3201,10 @@ function showUpdateModal(updateData, current) {
   if (!modal) return;
 
   if (verTag) verTag.textContent = `v${updateData.versionName || updateData.versionCode}`;
+  const directLink = document.getElementById('link-direct-download');
+  if (directLink && updateData.apkUrl) {
+    directLink.href = updateData.apkUrl;
+  }
   if (statusMsg) statusMsg.textContent = '';
 
   if (changelogList) {

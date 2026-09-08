@@ -3427,17 +3427,18 @@ function initHomeNewReleases() {
 }
 
 // ==========================================
-// Vibe Ambient Fluid Aura (Audio-Reactive Mesh)
+// Vibe Ambient Fluid Aura & Visualizer Bands
 // ==========================================
-let vibeAuraCtx = null;
 let vibeAuraCanvas = null;
+let vibeAuraCtx = null;
+let vibeWavesCanvas = null;
+let vibeWavesCtx = null;
 let vibeAuraWidth = 0;
 let vibeAuraHeight = 0;
 let vibeAuraAnimFrame = null;
 let vibeAuraAnalyser = null;
 let vibeAuraFreqData = null;
 
-// Palette: default Yandex Music golden yellow & electric blues
 let auraCurrentColors = [
   { r: 254, g: 212, b: 43 },  // YM Gold
   { r: 35, g: 110, b: 240 },  // Electric Blue
@@ -3449,26 +3450,46 @@ let auraTargetColors = [
   { r: 120, g: 30, b: 210 }
 ];
 
-// Blobs parameters for smooth organic wandering
+// Blobs parameters for background glow
 const AURA_BLOBS = [
-  { baseX: 0.5, baseY: 0.35, radiusRatio: 0.55, speedX: 0.0008, speedY: 0.0011, phaseX: 0, phaseY: 1.2, colorIdx: 0 },
-  { baseX: 0.3, baseY: 0.45, radiusRatio: 0.45, speedX: 0.0012, speedY: 0.0009, phaseX: 2.1, phaseY: 3.5, colorIdx: 1 },
-  { baseX: 0.7, baseY: 0.4, radiusRatio: 0.48, speedX: 0.0010, speedY: 0.0013, phaseX: 4.3, phaseY: 0.8, colorIdx: 2 }
+  { baseX: 0.5, baseY: 0.38, radiusRatio: 0.58, speedX: 0.0008, speedY: 0.0011, phaseX: 0, phaseY: 1.2, colorIdx: 0 },
+  { baseX: 0.28, baseY: 0.44, radiusRatio: 0.48, speedX: 0.0012, speedY: 0.0009, phaseX: 2.1, phaseY: 3.5, colorIdx: 1 },
+  { baseX: 0.72, baseY: 0.40, radiusRatio: 0.50, speedX: 0.0010, speedY: 0.0013, phaseX: 4.3, phaseY: 0.8, colorIdx: 2 }
+];
+
+// Visualizer Bands / Contour Ribbons Configuration
+const AURA_RINGS = [
+  { baseRadius: 78, speed1: 0.0014, speed2: 0.0022, amp1: 10, amp2: 6, colorIdx: 0, alpha: 0.65, lineWidth: 2.2 },
+  { baseRadius: 130, speed1: 0.0011, speed2: 0.0018, amp1: 14, amp2: 9, colorIdx: 1, alpha: 0.55, lineWidth: 2.0 },
+  { baseRadius: 190, speed1: 0.0008, speed2: 0.0014, amp1: 18, amp2: 12, colorIdx: 2, alpha: 0.45, lineWidth: 1.8 },
+  { baseRadius: 255, speed1: 0.0006, speed2: 0.0010, amp1: 22, amp2: 15, colorIdx: 0, alpha: 0.35, lineWidth: 1.6 }
 ];
 
 function initVibeAmbientAura() {
   vibeAuraCanvas = document.getElementById('vibe-ambient-canvas');
-  if (!vibeAuraCanvas) return;
+  vibeWavesCanvas = document.getElementById('vibe-waves-canvas');
+  if (!vibeAuraCanvas || !vibeWavesCanvas) return;
+
   vibeAuraCtx = vibeAuraCanvas.getContext('2d');
+  vibeWavesCtx = vibeWavesCanvas.getContext('2d');
 
   function resizeAura() {
-    if (!vibeAuraCanvas) return;
-    const rect = vibeAuraCanvas.parentElement ? vibeAuraCanvas.parentElement.getBoundingClientRect() : { width: window.innerWidth, height: 350 };
-    vibeAuraWidth = Math.max(rect.width, 300);
-    vibeAuraHeight = Math.max(rect.height, 260);
-    vibeAuraCanvas.width = vibeAuraWidth;
-    vibeAuraCanvas.height = vibeAuraHeight;
+    const parent = vibeAuraCanvas.parentElement || document.getElementById('view-vibe') || document.body;
+    const rect = parent.getBoundingClientRect();
+    vibeAuraWidth = Math.max(rect.width, window.innerWidth || 360);
+    vibeAuraHeight = Math.max(rect.height, 460);
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    vibeAuraCanvas.width = Math.round(vibeAuraWidth * 0.5); // Downscaled for ultra-smooth background blur
+    vibeAuraCanvas.height = Math.round(vibeAuraHeight * 0.5);
+
+    vibeWavesCanvas.width = Math.round(vibeAuraWidth * dpr);
+    vibeWavesCanvas.height = Math.round(vibeAuraHeight * dpr);
+    if (vibeWavesCtx) {
+      vibeWavesCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
   }
+
   window.addEventListener('resize', resizeAura);
   resizeAura();
 
@@ -3515,13 +3536,17 @@ function updateVibeAmbientAura(coverUrl) {
   } catch (e) {}
 }
 
-function getAuraPulseFactor() {
+function getAudioSpectrumData() {
+  let bass = 0;
+  let mids = 0;
+  let highs = 0;
+
   if (typeof eqAudioCtx !== 'undefined' && eqAudioCtx) {
     if (!vibeAuraAnalyser) {
       try {
         vibeAuraAnalyser = eqAudioCtx.createAnalyser();
         vibeAuraAnalyser.fftSize = 64;
-        vibeAuraAnalyser.smoothingTimeConstant = 0.8;
+        vibeAuraAnalyser.smoothingTimeConstant = 0.82;
         vibeAuraFreqData = new Uint8Array(vibeAuraAnalyser.frequencyBinCount);
         if (typeof eqFilters !== 'undefined' && eqFilters && eqFilters.length > 0) {
           eqFilters[eqFilters.length - 1].connect(vibeAuraAnalyser);
@@ -3532,47 +3557,69 @@ function getAuraPulseFactor() {
     }
     if (vibeAuraAnalyser && state.isPlaying) {
       vibeAuraAnalyser.getByteFrequencyData(vibeAuraFreqData);
-      const bass = (vibeAuraFreqData[0] + vibeAuraFreqData[1] + vibeAuraFreqData[2]) / 3 / 255;
-      return 1.0 + bass * 0.35;
+      bass = (vibeAuraFreqData[0] + vibeAuraFreqData[1] + vibeAuraFreqData[2] + vibeAuraFreqData[3]) / 4 / 255;
+      mids = (vibeAuraFreqData[5] + vibeAuraFreqData[7] + vibeAuraFreqData[9] + vibeAuraFreqData[11]) / 4 / 255;
+      highs = (vibeAuraFreqData[14] + vibeAuraFreqData[18] + vibeAuraFreqData[22]) / 3 / 255;
+      return { bass, mids, highs, pulse: 1.0 + bass * 0.42 };
     }
   }
+
   if (state.isPlaying) {
     const t = Date.now() * 0.003;
-    return 1.0 + Math.sin(t) * 0.08 + Math.sin(t * 1.8) * 0.04;
+    const synthBass = Math.max(0, Math.sin(t * 1.5)) * 0.45;
+    const synthMids = Math.max(0, Math.cos(t * 2.1)) * 0.35;
+    return {
+      bass: synthBass,
+      mids: synthMids,
+      highs: 0.2,
+      pulse: 1.0 + Math.sin(t) * 0.08 + Math.sin(t * 1.8) * 0.04
+    };
   }
-  return 1.0;
+
+  // Paused idle state - gentle breathing
+  const t = Date.now() * 0.0012;
+  return {
+    bass: 0.05,
+    mids: 0.05,
+    highs: 0.05,
+    pulse: 1.0 + Math.sin(t) * 0.03
+  };
 }
 
 function renderAuraFrame() {
   vibeAuraAnimFrame = requestAnimationFrame(renderAuraFrame);
-  if (!vibeAuraCtx || !vibeAuraCanvas) return;
+  if (!vibeAuraCtx || !vibeWavesCtx) return;
 
   const vibeView = document.getElementById('view-vibe');
   if (vibeView && !vibeView.classList.contains('active')) return;
 
   const now = Date.now();
-  const pulse = getAuraPulseFactor();
+  const audio = getAudioSpectrumData();
 
+  // Smoothly interpolate colors (lerp)
   for (let i = 0; i < 3; i++) {
-    auraCurrentColors[i].r += (auraTargetColors[i].r - auraCurrentColors[i].r) * 0.04;
-    auraCurrentColors[i].g += (auraTargetColors[i].g - auraCurrentColors[i].g) * 0.04;
-    auraCurrentColors[i].b += (auraTargetColors[i].b - auraCurrentColors[i].b) * 0.04;
+    auraCurrentColors[i].r += (auraTargetColors[i].r - auraCurrentColors[i].r) * 0.045;
+    auraCurrentColors[i].g += (auraTargetColors[i].g - auraCurrentColors[i].g) * 0.045;
+    auraCurrentColors[i].b += (auraTargetColors[i].b - auraCurrentColors[i].b) * 0.045;
   }
 
-  vibeAuraCtx.clearRect(0, 0, vibeAuraWidth, vibeAuraHeight);
+  // 1. Render Diffuse Color Cloud on vibeAuraCanvas (downscaled & blurred)
+  const bgW = vibeAuraCanvas.width;
+  const bgH = vibeAuraCanvas.height;
+  vibeAuraCtx.clearRect(0, 0, bgW, bgH);
 
   AURA_BLOBS.forEach((blob) => {
-    const offsetX = Math.sin(now * blob.speedX + blob.phaseX) * (vibeAuraWidth * 0.18);
-    const offsetY = Math.cos(now * blob.speedY + blob.phaseY) * (vibeAuraHeight * 0.14);
-    const cx = vibeAuraWidth * blob.baseX + offsetX;
-    const cy = vibeAuraHeight * blob.baseY + offsetY;
-    const radius = Math.min(vibeAuraWidth, vibeAuraHeight) * blob.radiusRatio * pulse;
+    const offsetX = Math.sin(now * blob.speedX + blob.phaseX) * (bgW * 0.20);
+    const offsetY = Math.cos(now * blob.speedY + blob.phaseY) * (bgH * 0.16);
+    const cx = bgW * blob.baseX + offsetX;
+    const cy = bgH * blob.baseY + offsetY;
+    const radius = Math.min(bgW, bgH) * blob.radiusRatio * audio.pulse;
 
     const col = auraCurrentColors[blob.colorIdx] || auraCurrentColors[0];
     const grad = vibeAuraCtx.createRadialGradient(cx, cy, radius * 0.05, cx, cy, radius);
-    grad.addColorStop(0, `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, 0.85)`);
-    grad.addColorStop(0.4, `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, 0.45)`);
-    grad.addColorStop(0.75, `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, 0.15)`);
+    grad.addColorStop(0, `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, 0.88)`);
+    grad.addColorStop(0.4, `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, 0.50)`);
+    grad.addColorStop(0.75, `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, 0.18)`);
     grad.addColorStop(1, `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, 0)`);
 
     vibeAuraCtx.fillStyle = grad;
@@ -3580,16 +3627,93 @@ function renderAuraFrame() {
     vibeAuraCtx.arc(cx, cy, radius, 0, Math.PI * 2);
     vibeAuraCtx.fill();
   });
+
+  // 2. Render Sharp Luminous Visualizer Bands on vibeWavesCanvas
+  vibeWavesCtx.clearRect(0, 0, vibeAuraWidth, vibeAuraHeight);
+
+  // Center around the vibe play button animation
+  const centerX = vibeAuraWidth * 0.5;
+  const centerY = 110; // Corresponds to the vertical position of .vibe-animation in vibe-container
+
+  // A. Draw Concentric Pulsing Contour Rings
+  AURA_RINGS.forEach((ring, idx) => {
+    const col = auraCurrentColors[ring.colorIdx] || auraCurrentColors[0];
+    const baseR = ring.baseRadius * audio.pulse;
+    const numPoints = 80;
+    const step = (Math.PI * 2) / numPoints;
+
+    vibeWavesCtx.save();
+    vibeWavesCtx.beginPath();
+
+    for (let i = 0; i <= numPoints; i++) {
+      const theta = i * step;
+      // Harmonic undulating wave equations
+      const wave1 = Math.sin(theta * 2 + now * ring.speed1 + idx * 1.3) * ring.amp1;
+      const wave2 = Math.cos(theta * 3 - now * ring.speed2 + idx * 2.1) * ring.amp2;
+      // Audio frequency ripple perturbation
+      const audioRipple = Math.sin(theta * 5 + now * 0.005) * (audio.mids * 18 + audio.bass * 12);
+      const r = baseR + wave1 + wave2 + audioRipple;
+
+      const px = centerX + Math.cos(theta) * r;
+      const py = centerY + Math.sin(theta) * (r * 0.88); // Slightly oval perspective
+
+      if (i === 0) vibeWavesCtx.moveTo(px, py);
+      else vibeWavesCtx.lineTo(px, py);
+    }
+
+    vibeWavesCtx.closePath();
+
+    const dynamicAlpha = Math.min(0.9, ring.alpha + audio.bass * 0.3);
+    vibeWavesCtx.strokeStyle = `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, ${dynamicAlpha})`;
+    vibeWavesCtx.lineWidth = ring.lineWidth + (audio.bass > 0.4 ? 0.8 : 0);
+    vibeWavesCtx.shadowColor = `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, 0.85)`;
+    vibeWavesCtx.shadowBlur = 12 + Math.round(audio.bass * 10);
+    vibeWavesCtx.stroke();
+    vibeWavesCtx.restore();
+  });
+
+  // B. Draw Flowing Upper Harmonic Wave Ribbons behind "Моя Волна"
+  const waveRibbons = [
+    { y: centerY - 45, speed: 0.0018, freq: 0.009, amp: 16, colorIdx: 0 },
+    { y: centerY + 65, speed: 0.0012, freq: 0.007, amp: 20, colorIdx: 1 }
+  ];
+
+  waveRibbons.forEach((ribbon, rIdx) => {
+    const col = auraCurrentColors[ribbon.colorIdx] || auraCurrentColors[0];
+    vibeWavesCtx.save();
+    vibeWavesCtx.beginPath();
+
+    const startX = -10;
+    const endX = vibeAuraWidth + 10;
+    const stepX = 14;
+
+    for (let x = startX; x <= endX; x += stepX) {
+      const harmonic1 = Math.sin(x * ribbon.freq + now * ribbon.speed + rIdx) * ribbon.amp;
+      const harmonic2 = Math.cos(x * ribbon.freq * 1.8 - now * ribbon.speed * 0.7) * (ribbon.amp * 0.4);
+      const audioBounce = Math.sin(x * 0.02 + now * 0.006) * (audio.mids * 14 + audio.highs * 8);
+      const y = ribbon.y + harmonic1 + harmonic2 + audioBounce;
+
+      if (x === startX) vibeWavesCtx.moveTo(x, y);
+      else vibeWavesCtx.lineTo(x, y);
+    }
+
+    vibeWavesCtx.strokeStyle = `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, ${0.35 + audio.mids * 0.3})`;
+    vibeWavesCtx.lineWidth = 1.8;
+    vibeWavesCtx.shadowColor = `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, 0.75)`;
+    vibeWavesCtx.shadowBlur = 10;
+    vibeWavesCtx.stroke();
+    vibeWavesCtx.restore();
+  });
 }
 
 // ==========================================
-// Swipe Gesture Engine (Full Player & Mini Player)
+// 120Hz Gesture Engine (Full Player, Mini Player, Artist & Album)
 // ==========================================
 function initSwipeGestures() {
   const fullPlayer = dom.fullPlayer;
   const miniPlayer = dom.miniPlayer;
 
-  // 1. Full Player Gestures (Swipe Down to Close + Swipe Left/Right to Skip)
+  // 1. Full Player Gestures (Silky 120Hz Drag Down to Close + Cover Swipe)
   if (fullPlayer) {
     let startX = 0, startY = 0, startTime = 0;
     let isSwiping = false;
@@ -3612,24 +3736,27 @@ function initSwipeGestures() {
       const dy = e.touches[0].clientY - startY;
 
       if (!swipeDirection) {
-        if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) {
+        if (Math.abs(dy) > 8 && Math.abs(dy) > Math.abs(dx)) {
           swipeDirection = 'v';
-        } else if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+        } else if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) {
           swipeDirection = 'h';
         }
       }
 
-      // Drag down to close
+      // Drag down to close (120Hz smooth tracking)
       if (swipeDirection === 'v') {
         if (dy > 0) {
+          const dampedY = Math.pow(dy, 0.96);
           fullPlayer.style.transition = 'none';
-          fullPlayer.style.transform = `translateY(${dy}px)`;
+          fullPlayer.style.transform = `translate3d(0, ${dampedY}px, 0)`;
+          fullPlayer.style.opacity = Math.max(0.65, 1 - (dampedY / (window.innerHeight || 800)) * 0.45);
         }
       }
       // Horizontal swipe over cover
       else if (swipeDirection === 'h' && dom.fullCover) {
         dom.fullCover.style.transition = 'none';
-        dom.fullCover.style.transform = `translateX(${dx * 0.35}px) rotate(${dx * 0.04}deg)`;
+        dom.fullCover.style.transform = `translate3d(${dx * 0.75}px, 0, 0) scale(${Math.max(0.88, 1 - Math.abs(dx) / 1200)})`;
+        dom.fullCover.style.opacity = Math.max(0.4, 1 - Math.abs(dx) / 380);
       }
     }, { passive: true });
 
@@ -3638,30 +3765,75 @@ function initSwipeGestures() {
       isSwiping = false;
       const dx = (e.changedTouches ? e.changedTouches[0].clientX : 0) - startX;
       const dy = (e.changedTouches ? e.changedTouches[0].clientY : 0) - startY;
-      const duration = Date.now() - startTime;
+      const duration = Math.max(Date.now() - startTime, 1);
       const velocityY = dy / duration;
       const velocityX = dx / duration;
 
       if (swipeDirection === 'v') {
-        fullPlayer.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
-        if (dy > 110 || (dy > 50 && velocityY > 0.4)) {
-          fullPlayer.classList.add('translateY-100');
-          fullPlayer.style.transform = '';
+        if (dy > 110 || (dy > 40 && velocityY > 0.35)) {
+          // Smooth 120Hz dismiss
+          fullPlayer.style.transition = 'transform 0.38s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.38s ease';
+          fullPlayer.style.transform = 'translate3d(0, 100%, 0)';
+          fullPlayer.style.opacity = '0';
+          setTimeout(() => {
+            fullPlayer.classList.add('translateY-100');
+            fullPlayer.style.transform = '';
+            fullPlayer.style.transition = '';
+            fullPlayer.style.opacity = '';
+          }, 380);
           if (navigator.vibrate) navigator.vibrate(10);
         } else {
-          fullPlayer.style.transform = '';
+          // Smooth 120Hz snap back
+          fullPlayer.style.transition = 'transform 0.32s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.32s ease';
+          fullPlayer.style.transform = 'translate3d(0, 0, 0)';
+          fullPlayer.style.opacity = '1';
+          setTimeout(() => {
+            fullPlayer.style.transform = '';
+            fullPlayer.style.transition = '';
+            fullPlayer.style.opacity = '';
+          }, 320);
         }
       } else if (swipeDirection === 'h') {
         if (dom.fullCover) {
-          dom.fullCover.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
-          dom.fullCover.style.transform = '';
-        }
-        if (dx < -60 || (dx < -30 && velocityX < -0.3)) {
-          playNext();
-          if (navigator.vibrate) navigator.vibrate(15);
-        } else if (dx > 60 || (dx > 30 && velocityX > 0.3)) {
-          playPrev();
-          if (navigator.vibrate) navigator.vibrate(15);
+          if (dx < -60 || (dx < -25 && velocityX < -0.3)) {
+            // Next track
+            dom.fullCover.style.transition = 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.24s ease';
+            dom.fullCover.style.transform = 'translate3d(-100px, 0, 0) scale(0.85)';
+            dom.fullCover.style.opacity = '0';
+            playNext();
+            setTimeout(() => {
+              dom.fullCover.style.transition = 'none';
+              dom.fullCover.style.transform = 'translate3d(80px, 0, 0) scale(0.9)';
+              dom.fullCover.style.opacity = '0';
+              requestAnimationFrame(() => {
+                dom.fullCover.style.transition = 'transform 0.34s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.34s ease';
+                dom.fullCover.style.transform = 'translate3d(0, 0, 0) scale(1)';
+                dom.fullCover.style.opacity = '1';
+              });
+            }, 180);
+            if (navigator.vibrate) navigator.vibrate(15);
+          } else if (dx > 60 || (dx > 25 && velocityX > 0.3)) {
+            // Prev track
+            dom.fullCover.style.transition = 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.24s ease';
+            dom.fullCover.style.transform = 'translate3d(100px, 0, 0) scale(0.85)';
+            dom.fullCover.style.opacity = '0';
+            playPrev();
+            setTimeout(() => {
+              dom.fullCover.style.transition = 'none';
+              dom.fullCover.style.transform = 'translate3d(-80px, 0, 0) scale(0.9)';
+              dom.fullCover.style.opacity = '0';
+              requestAnimationFrame(() => {
+                dom.fullCover.style.transition = 'transform 0.34s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.34s ease';
+                dom.fullCover.style.transform = 'translate3d(0, 0, 0) scale(1)';
+                dom.fullCover.style.opacity = '1';
+              });
+            }, 180);
+            if (navigator.vibrate) navigator.vibrate(15);
+          } else {
+            dom.fullCover.style.transition = 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease';
+            dom.fullCover.style.transform = 'translate3d(0, 0, 0) scale(1)';
+            dom.fullCover.style.opacity = '1';
+          }
         }
       }
       swipeDirection = null;
@@ -3671,35 +3843,159 @@ function initSwipeGestures() {
     fullPlayer.addEventListener('touchcancel', endHandler, { passive: true });
   }
 
-  // 2. Mini Player Gestures (Swipe Left/Right for Next/Prev, Swipe Up to Open)
+  // 2. Mini Player Gestures (Interactive 120Hz Slide + Swipe Up to Open)
   if (miniPlayer) {
     let mStartX = 0, mStartY = 0, mStartTime = 0;
+    let mIsDragging = false;
+    const miniContent = miniPlayer.querySelector('.mini-player-content') || miniPlayer;
 
     miniPlayer.addEventListener('touchstart', (e) => {
       if (e.target.closest('.mini-controls')) return;
       mStartX = e.touches[0].clientX;
       mStartY = e.touches[0].clientY;
       mStartTime = Date.now();
+      mIsDragging = true;
     }, { passive: true });
 
-    miniPlayer.addEventListener('touchend', (e) => {
-      if (e.target.closest('.mini-controls')) return;
-      const mDx = (e.changedTouches ? e.changedTouches[0].clientX : 0) - mStartX;
-      const mDy = (e.changedTouches ? e.changedTouches[0].clientY : 0) - mStartY;
+    miniPlayer.addEventListener('touchmove', (e) => {
+      if (!mIsDragging) return;
+      const mDx = e.touches[0].clientX - mStartX;
+      const mDy = e.touches[0].clientY - mStartY;
 
-      if (mDy < -45 && Math.abs(mDy) > Math.abs(mDx)) {
-        dom.fullPlayer.classList.remove('translateY-100');
-        if (navigator.vibrate) navigator.vibrate(10);
-      } else if (Math.abs(mDx) > 45 && Math.abs(mDx) > Math.abs(mDy)) {
-        if (mDx < 0) {
-          playNext();
-        } else {
-          playPrev();
-        }
-        if (navigator.vibrate) navigator.vibrate(15);
+      if (Math.abs(mDx) > Math.abs(mDy) && Math.abs(mDx) > 8) {
+        miniContent.style.transition = 'none';
+        miniContent.style.transform = `translate3d(${mDx * 0.85}px, 0, 0)`;
+        miniContent.style.opacity = Math.max(0.35, 1 - Math.abs(mDx) / 260);
       }
     }, { passive: true });
+
+    const miniEndHandler = (e) => {
+      if (!mIsDragging) return;
+      mIsDragging = false;
+      const mDx = (e.changedTouches ? e.changedTouches[0].clientX : 0) - mStartX;
+      const mDy = (e.changedTouches ? e.changedTouches[0].clientY : 0) - mStartY;
+      const duration = Math.max(Date.now() - mStartTime, 1);
+      const velocityX = mDx / duration;
+
+      if (mDy < -45 && Math.abs(mDy) > Math.abs(mDx)) {
+        // Swipe Up -> Open Full Player smoothly
+        miniContent.style.transform = '';
+        miniContent.style.opacity = '';
+        dom.fullPlayer.classList.remove('translateY-100');
+        if (navigator.vibrate) navigator.vibrate(10);
+      } else if (Math.abs(mDx) > 45 || (Math.abs(mDx) > 20 && Math.abs(velocityX) > 0.3)) {
+        if (mDx < 0) {
+          // Slide out left -> Next Track
+          miniContent.style.transition = 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease';
+          miniContent.style.transform = 'translate3d(-100%, 0, 0)';
+          miniContent.style.opacity = '0';
+          playNext();
+          setTimeout(() => {
+            miniContent.style.transition = 'none';
+            miniContent.style.transform = 'translate3d(60px, 0, 0)';
+            miniContent.style.opacity = '0';
+            requestAnimationFrame(() => {
+              miniContent.style.transition = 'transform 0.30s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.30s ease';
+              miniContent.style.transform = 'translate3d(0, 0, 0)';
+              miniContent.style.opacity = '1';
+            });
+          }, 160);
+        } else {
+          // Slide out right -> Prev Track
+          miniContent.style.transition = 'transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.22s ease';
+          miniContent.style.transform = 'translate3d(100%, 0, 0)';
+          miniContent.style.opacity = '0';
+          playPrev();
+          setTimeout(() => {
+            miniContent.style.transition = 'none';
+            miniContent.style.transform = 'translate3d(-60px, 0, 0)';
+            miniContent.style.opacity = '0';
+            requestAnimationFrame(() => {
+              miniContent.style.transition = 'transform 0.30s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.30s ease';
+              miniContent.style.transform = 'translate3d(0, 0, 0)';
+              miniContent.style.opacity = '1';
+            });
+          }, 160);
+        }
+        if (navigator.vibrate) navigator.vibrate(15);
+      } else {
+        // Snap back
+        miniContent.style.transition = 'transform 0.26s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.26s ease';
+        miniContent.style.transform = 'translate3d(0, 0, 0)';
+        miniContent.style.opacity = '1';
+      }
+    };
+
+    miniPlayer.addEventListener('touchend', miniEndHandler, { passive: true });
+    miniPlayer.addEventListener('touchcancel', miniEndHandler, { passive: true });
   }
+
+  // 3. Artist & Album Views Gestures (Smooth 120Hz Swipe Right to Back)
+  ['view-artist', 'view-album'].forEach((viewId) => {
+    const viewEl = document.getElementById(viewId);
+    if (!viewEl) return;
+
+    let vStartX = 0, vStartY = 0, vStartTime = 0;
+    let vIsSwiping = false;
+
+    viewEl.addEventListener('touchstart', (e) => {
+      vStartX = e.touches[0].clientX;
+      vStartY = e.touches[0].clientY;
+      vStartTime = Date.now();
+      vIsSwiping = false;
+    }, { passive: true });
+
+    viewEl.addEventListener('touchmove', (e) => {
+      const vDx = e.touches[0].clientX - vStartX;
+      const vDy = e.touches[0].clientY - vStartY;
+
+      if (!vIsSwiping) {
+        // Trigger swipe back if moving right and horizontal dominance
+        if (vDx > 12 && Math.abs(vDx) > Math.abs(vDy) * 1.3) {
+          vIsSwiping = true;
+        }
+      }
+
+      if (vIsSwiping && vDx > 0) {
+        viewEl.style.transition = 'none';
+        viewEl.style.transform = `translate3d(${vDx}px, 0, 0)`;
+        viewEl.style.boxShadow = '-12px 0 35px rgba(0,0,0,0.6)';
+      }
+    }, { passive: true });
+
+    const vEndHandler = (e) => {
+      if (!vIsSwiping) return;
+      vIsSwiping = false;
+      const vDx = (e.changedTouches ? e.changedTouches[0].clientX : 0) - vStartX;
+      const duration = Math.max(Date.now() - vStartTime, 1);
+      const velocityX = vDx / duration;
+
+      if (vDx > 85 || (vDx > 35 && velocityX > 0.35)) {
+        // Smoothly dismiss to the right and navigate back
+        viewEl.style.transition = 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)';
+        viewEl.style.transform = 'translate3d(100%, 0, 0)';
+        setTimeout(() => {
+          navigateBack();
+          viewEl.style.transform = '';
+          viewEl.style.transition = '';
+          viewEl.style.boxShadow = '';
+        }, 280);
+        if (navigator.vibrate) navigator.vibrate(10);
+      } else {
+        // Snap back
+        viewEl.style.transition = 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1)';
+        viewEl.style.transform = 'translate3d(0, 0, 0)';
+        setTimeout(() => {
+          viewEl.style.transform = '';
+          viewEl.style.transition = '';
+          viewEl.style.boxShadow = '';
+        }, 250);
+      }
+    };
+
+    viewEl.addEventListener('touchend', vEndHandler, { passive: true });
+    viewEl.addEventListener('touchcancel', vEndHandler, { passive: true });
+  });
 }
 
 // Initialize on DOM load and user interaction

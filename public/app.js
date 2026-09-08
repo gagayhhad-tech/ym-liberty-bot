@@ -2864,14 +2864,14 @@ function initEqualizerAndQualityUI() {
 // In-App Auto-Update System (Vercel Host)
 // ==========================================
 function getAppVersionInfo() {
-  let versionCode = 1;
-  let versionName = '1.0.0';
+  let versionCode = 3;
+  let versionName = '1.0.2';
   if (window.AndroidBridge) {
     if (typeof window.AndroidBridge.getVersionCode === 'function') {
-      try { versionCode = window.AndroidBridge.getVersionCode() || 1; } catch (e) {}
+      try { versionCode = window.AndroidBridge.getVersionCode() || 3; } catch (e) {}
     }
     if (typeof window.AndroidBridge.getVersionName === 'function') {
-      try { versionName = window.AndroidBridge.getVersionName() || '1.0.0'; } catch (e) {}
+      try { versionName = window.AndroidBridge.getVersionName() || '1.0.2'; } catch (e) {}
     }
   }
   return { versionCode, versionName };

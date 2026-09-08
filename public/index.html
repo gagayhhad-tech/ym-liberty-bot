@@ -292,21 +292,27 @@
                   <div class="eq-freq-wrap">
                     <span class="eq-freq">14 кГц</span>
                     <span class="eq-freq-sub">Воздух</span>
-                  </div>
-                </div>
               </div>
             </div>
+          </div>
         </div>
 
-        <div class="settings-section">
+        <!-- View: Settings - About App Section -->
+        <div class="settings-section about-section">
           <h3>О приложении</h3>
-          <div class="setting-item" style="justify-content: space-between;">
-            <div>
-              <span style="font-weight: 600;">YM Liberty</span>
-              <p id="app-version-label" style="font-size: 12px; color: var(--text-secondary); margin: 2px 0 0 0;">v1.0.0 (Сборка 1)</p>
+          <div class="setting-item about-app-item">
+            <div class="about-app-info">
+              <div class="about-app-logo">
+                <img src="favicon.png" alt="YM Liberty" class="about-logo-img">
+              </div>
+              <div class="about-app-text">
+                <div class="about-app-name">YM Liberty</div>
+                <div id="app-version-label" class="about-app-version">v1.0.1 (Сборка 2)</div>
+              </div>
             </div>
-            <button id="btn-check-update" class="btn-primary" style="padding: 8px 14px; font-size: 13px; border-radius: 8px; width: auto; display: flex; align-items: center; gap: 6px;">
-              <i class="bi bi-arrow-repeat"></i> <span>Проверить</span>
+            <button id="btn-check-update" class="btn-check-update" aria-label="Проверить обновления">
+              <i class="bi bi-arrow-repeat"></i>
+              <span>Обновить</span>
             </button>
           </div>
         </div>

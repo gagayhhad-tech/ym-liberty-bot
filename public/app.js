@@ -756,13 +756,17 @@ async function playNext(isUserSkip = true) {
     state.queueIndex++;
     if (state.queueIndex >= state.queue.length) {
       await fetchMoreVibeTracks();
-      if (state.queueIndex < state.queue.length) {
-        playQueueTrack(state.queue[state.queueIndex]);
-      } else {
-        state.queueIndex = 0;
-        playQueueTrack(state.queue[0]);
+      if (state.queueIndex >= state.queue.length) {
+        // Fallback: fetch a fresh batch directly to ensure continuous playback without repeating track 0
+        try {
+          const freshData = await YandexClient.getVibe(state.token, null, state.currentStation || 'user:onyourwave');
+          if (freshData && freshData.tracks && freshData.tracks.length > 0) {
+            state.queue = state.queue.concat(freshData.tracks);
+          }
+        } catch(e) {}
       }
-    } else {
+    }
+    if (state.queueIndex < state.queue.length) {
       playQueueTrack(state.queue[state.queueIndex]);
     }
   } else {
@@ -1201,6 +1205,18 @@ function updateTrackUI(trackInfo) {
     blob.style.backgroundImage = `url(${trackInfo.cover})`;
   });
 
+  // Dynamic Full Player Colorful Cover Backdrop
+  const fullPlayerBg = document.getElementById('full-player-bg');
+  if (fullPlayerBg && trackInfo.cover) {
+    let coverHigh = trackInfo.cover;
+    if (coverHigh.includes('%%')) coverHigh = coverHigh.replace('%%', '400x400');
+    if (coverHigh.includes('100x100')) coverHigh = coverHigh.replace('100x100', '400x400');
+    if (!coverHigh.startsWith('http') && coverHigh && coverHigh !== '/favicon.png') {
+      coverHigh = `https://${coverHigh}`;
+    }
+    fullPlayerBg.style.backgroundImage = `url("${coverHigh}")`;
+  }
+
   if (typeof updateVibeAmbientAura === 'function') {
     updateVibeAmbientAura(trackInfo.cover);
   }
@@ -1438,7 +1454,7 @@ function saveVibeHistory() {
 state.vibeHistory = loadVibeHistory();
 
 async function startVibe() {
-  if (state.queueMode === 'vibe' && (!state.currentStation || state.currentStation === 'user:onyourwave') && state.queue.length > 0) {
+  if (state.queueMode === 'vibe' && (!state.currentStation || state.currentStation === 'user:onyourwave') && state.queue.length > 0 && state.queueIndex < state.queue.length) {
     // If already in standard Vibe mode, just toggle play/pause
     if (state.isPlaying) return activePlayer.pause();
     return activePlayer.play();
@@ -1451,10 +1467,7 @@ async function startVibe() {
   dom.vibePlayBtn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
   
   try {
-    const historyArr = Array.from(state.vibeHistory || []);
-    const lastHeardId = historyArr.length > 0 ? historyArr[historyArr.length - 1] : null;
-
-    let data = await YandexClient.getVibe(state.token, lastHeardId, 'user:onyourwave');
+    let data = await YandexClient.getVibe(state.token, null, 'user:onyourwave');
     
     if (data.shadowbanned) {
       showToast('Яндекс ограничил аккаунт. Попробуйте сменить станцию', 'bi-exclamation-triangle');
@@ -1462,24 +1475,12 @@ async function startVibe() {
       return;
     }
     
-    // Filter out tracks heard earlier
-    let freshTracks = (data.tracks || []).filter(t => !state.vibeHistory.has(String(t.id)));
-
-    // If Rotor returned duplicates of history, fetch the next sequence chunk
-    let retries = 0;
-    while (freshTracks.length === 0 && retries < 3) {
-      retries++;
-      const lastId = (data.tracks && data.tracks.length > 0) ? data.tracks[data.tracks.length - 1].id : lastHeardId;
-      data = await YandexClient.getVibe(state.token, lastId, 'user:onyourwave');
-      const filtered = (data.tracks || []).filter(t => !state.vibeHistory.has(String(t.id)));
-      if (filtered.length > 0) {
-        freshTracks = filtered;
-        break;
-      }
-    }
-
+    let tracks = data.tracks || [];
+    // Only avoid the most recent 30 tracks so we do not exhaust recommendations
+    const recentHistory = new Set(Array.from(state.vibeHistory || []).slice(-30));
+    let freshTracks = tracks.filter(t => !recentHistory.has(String(t.id)));
     if (freshTracks.length === 0) {
-      freshTracks = data.tracks || [];
+      freshTracks = tracks;
     }
     
     if (freshTracks.length > 0) {
@@ -1491,6 +1492,11 @@ async function startVibe() {
       const firstTrack = state.queue[0];
       sendFeedback('radioStarted', firstTrack.id, 0);
       playQueueTrack(firstTrack);
+
+      // Pre-fill queue with next tracks in background
+      setTimeout(() => {
+        fetchMoreVibeTracks().catch(() => {});
+      }, 1200);
     }
   } catch (e) {
     console.error("Vibe start error", e);
@@ -1503,32 +1509,36 @@ async function fetchMoreVibeTracks() {
   if (state.isFetchingVibe) return;
   state.isFetchingVibe = true;
   try {
-    const lastTrack = state.queue[state.queue.length - 1];
-    const lastId = lastTrack ? lastTrack.id : null;
     const station = state.currentStation || 'user:onyourwave';
-    let data = await YandexClient.getVibe(state.token, lastId, station);
+    // Use the track that actually played/is playing (registered with Rotor feedback)
+    const currentTr = state.currentTrack || state.queue[state.queueIndex];
+    const trackForQueue = currentTr ? currentTr.id : null;
+    let data = await YandexClient.getVibe(state.token, trackForQueue, station);
     
-    if (data.tracks && data.tracks.length > 0) {
-      if (data.batchId) state.vibeBatchId = data.batchId;
-      
-      const existingInQueue = new Set(state.queue.map(t => String(t.id)));
-      let freshTracks = data.tracks.filter(t => !existingInQueue.has(String(t.id)) && !state.vibeHistory.has(String(t.id)));
-      
-      // If Rotor returned duplicates, try one more batch forward
-      if (freshTracks.length === 0) {
-        const nextLastId = data.tracks[data.tracks.length - 1].id;
-        data = await YandexClient.getVibe(state.token, nextLastId, station);
-        if (data.tracks && data.tracks.length > 0) {
-          freshTracks = data.tracks.filter(t => !existingInQueue.has(String(t.id)) && !state.vibeHistory.has(String(t.id)));
-        }
-      }
+    const existingIds = new Set(state.queue.map(t => String(t.id)));
+    let freshTracks = (data && data.tracks ? data.tracks : []).filter(t => !existingIds.has(String(t.id)));
+    
+    // If Rotor returned duplicates, request fresh recommendation batch without queue
+    if (freshTracks.length === 0) {
+      data = await YandexClient.getVibe(state.token, null, station);
+      freshTracks = (data && data.tracks ? data.tracks : []).filter(t => !existingIds.has(String(t.id)));
+    }
 
-      if (freshTracks.length === 0) {
-        freshTracks = data.tracks.filter(t => !existingInQueue.has(String(t.id)));
-      }
-      
-      if (freshTracks.length > 0) {
-        state.queue = state.queue.concat(freshTracks);
+    // If still empty, filter against recently played tracks (avoid last 15)
+    if (freshTracks.length === 0 && data && data.tracks && data.tracks.length > 0) {
+      const recentPlayed = new Set(state.queue.slice(Math.max(0, state.queueIndex - 15), state.queueIndex + 1).map(t => String(t.id)));
+      freshTracks = data.tracks.filter(t => !recentPlayed.has(String(t.id)));
+    }
+    
+    if (data && data.batchId) state.vibeBatchId = data.batchId;
+    
+    if (freshTracks.length > 0) {
+      state.queue = state.queue.concat(freshTracks);
+      // Prune played tracks far in the past to avoid unbounded queue growth
+      if (state.queueIndex > 25) {
+        const dropCount = state.queueIndex - 10;
+        state.queue.splice(0, dropCount);
+        state.queueIndex -= dropCount;
       }
     }
   } catch(e) {
@@ -3128,8 +3138,8 @@ function initEqualizerAndQualityUI() {
 // In-App Auto-Update System (Vercel Host)
 // ==========================================
 function getAppVersionInfo() {
-  let versionCode = 15;
-  let versionName = '1.0.14';
+  let versionCode = 16;
+  let versionName = '1.0.15';
   if (window.AndroidBridge) {
     if (typeof window.AndroidBridge.getVersionCode === 'function') {
       try { versionCode = window.AndroidBridge.getVersionCode() || 4; } catch (e) {}

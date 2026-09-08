@@ -56,51 +56,45 @@ module.exports = async (req, res) => {
       });
     }
 
-    // 1. Основной источник: landing3 new-releases (настоящие новинки)
+    // 1. Официальный плейлист редакции Яндекса «Громкие новинки месяца» (103372440:1175)
     try {
-      const relRes = await axios.get("https://api.music.yandex.net/landing3?blocks=new-releases", {
+      const plRes = await axios.get("https://api.music.yandex.net/users/103372440/playlists/1175", {
         headers,
         timeout: 8000
       });
-      const relBlock = (relRes.data?.result?.blocks || []).find(b => b.type === "new-releases");
-      if (relBlock && Array.isArray(relBlock.entities)) {
-        const albumIds = relBlock.entities.slice(0, 12).map(e => e.data?.id).filter(Boolean);
-        if (albumIds.length > 0) {
-          const albRes = await axios.get(
-            `https://api.music.yandex.net/albums?album-ids=${albumIds.join(",")}&with-tracks=true`,
-            { headers, timeout: 10000 }
-          );
-          const albums = albRes.data?.result || [];
-          for (const alb of albums) {
-            const tracksArr = (alb.volumes || []).flat();
-            tracksArr.slice(0, 2).forEach(t => addTrack(t, alb.title || "Новинка"));
-          }
-        }
+      const pl = plRes.data?.result;
+      const items = pl?.tracks || [];
+      console.log("[FEED] Fetched 1175 playlist items:", items.length);
+      for (const item of items.slice(0, 30)) {
+        const t = item.track || item;
+        addTrack(t, "Новинка");
       }
-    } catch (relErr) {
-      console.warn("Feed new-releases error:", relErr.message);
+    } catch (plErr) {
+      console.warn("[FEED] Error fetching 1175 playlist:", plErr.message);
     }
 
-    // 2. Дополнение: личный фид (только type=tracks — персональные новинки)
-    if (extractedTracks.length < 15 && rawToken) {
+    // 2. Если мало треков, дополняем «Громкие новинки: поп» (103372440:2440)
+    if (extractedTracks.length < 15) {
       try {
-        const feedRes = await axios.get("https://api.music.yandex.net/feed", {
+        const popRes = await axios.get("https://api.music.yandex.net/users/103372440/playlists/2440", {
           headers,
           timeout: 8000
         });
-        const events = feedRes.data?.result?.days?.[0]?.events || [];
-        for (const ev of events) {
-          if (ev.type === "tracks" && Array.isArray(ev.tracks)) {
-            ev.tracks.forEach(t => addTrack(t, ev.title || "Новинка"));
-          }
+        const items = popRes.data?.result?.tracks || [];
+        console.log("[FEED] Fetched 2440 playlist items:", items.length);
+        for (const item of items.slice(0, 20)) {
+          const t = item.track || item;
+          addTrack(t, "Новинка");
         }
-      } catch (feedErr) {
-        console.warn("Feed personal error:", feedErr.message);
+      } catch (popErr) {
+        console.warn("[FEED] Error fetching 2440 playlist:", popErr.message);
       }
     }
 
+    console.log("[FEED] Total new release tracks ready:", extractedTracks.length);
+
     return res.status(200).json({
-      tracks: extractedTracks.slice(0, 20),
+      tracks: extractedTracks.slice(0, 30),
       generatedPlaylists: []
     });
   } catch (err) {
@@ -108,3 +102,4 @@ module.exports = async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch feed", message: err.message });
   }
 };
+

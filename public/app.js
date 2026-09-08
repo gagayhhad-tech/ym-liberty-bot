@@ -3379,7 +3379,7 @@ function initHomeNewReleases() {
       loadHomeNewReleases(true);
     });
   }
-  // Загрузка происходит после авторизации (см. authenticate())
+  loadHomeNewReleases();
 }
 
 // Initialize on DOM load and user interaction
@@ -3389,10 +3389,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initEqualizerAndQualityUI();
   initAppUpdater();
   initHomeNewReleases();
-  // Если токен уже есть (пользователь ранее вошёл) — грузим новинки
-  if (state.token) {
-    setTimeout(() => loadHomeNewReleases(), 1500);
-  }
 });
 
 // Also initialize immediately in case DOM is already ready
@@ -3402,9 +3398,6 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
   initEqualizerAndQualityUI();
   initAppUpdater();
   initHomeNewReleases();
-  if (state.token) {
-    setTimeout(() => loadHomeNewReleases(), 1500);
-  }
 }
 
 // Lazy audio context unlock on first user click/touch

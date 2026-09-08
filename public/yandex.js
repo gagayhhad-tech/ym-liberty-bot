@@ -746,51 +746,40 @@ const YandexClient = {
         });
       }
 
-      // 1. Основной источник: new-releases (настоящие новинки)
+      // 1. Официальный плейлист редакции Яндекса «Громкие новинки месяца» (103372440:1175)
       try {
-        const relRes = await fetch('https://api.music.yandex.net/landing3?blocks=new-releases', {
+        const plRes = await fetch('https://api.music.yandex.net/users/103372440/playlists/1175', {
           headers: this.getHeaders(token)
         });
-        const relData = await relRes.json();
-        const relBlock = (relData.result?.blocks || []).find(b => b.type === 'new-releases');
-        if (relBlock && Array.isArray(relBlock.entities)) {
-          const albumIds = relBlock.entities.slice(0, 12).map(e => e.data?.id).filter(Boolean);
-          if (albumIds.length > 0) {
-            const albRes = await fetch(
-              `https://api.music.yandex.net/albums?album-ids=${albumIds.join(',')}&with-tracks=true`,
-              { headers: this.getHeaders(token) }
-            );
-            const albData = await albRes.json();
-            for (const alb of (albData.result || [])) {
-              const tracksArr = (alb.volumes || []).flat();
-              tracksArr.slice(0, 2).forEach(t => addTrack(t, alb.title || 'Новинка'));
-            }
-          }
+        const plData = await plRes.json();
+        const items = plData.result?.tracks || [];
+        for (const item of items.slice(0, 30)) {
+          const t = item.track || item;
+          addTrack(t, 'Новинка');
         }
-      } catch (relErr) {
-        console.warn('Feed new-releases error:', relErr);
+      } catch (plErr) {
+        console.warn('Feed 1175 error:', plErr);
       }
 
-      // 2. Дополнение: личные новинки из feed (только type=tracks, только свежие)
+      // 2. Если мало треков, дополняем «Громкие новинки: поп» (103372440:2440)
       if (extractedTracks.length < 15) {
         try {
-          const feedRes = await fetch('https://api.music.yandex.net/feed', {
+          const popRes = await fetch('https://api.music.yandex.net/users/103372440/playlists/2440', {
             headers: this.getHeaders(token)
           });
-          const feedData = await feedRes.json();
-          const events = feedData.result?.days?.[0]?.events || [];
-          for (const ev of events) {
-            if (ev.type === 'tracks' && Array.isArray(ev.tracks)) {
-              ev.tracks.forEach(t => addTrack(t, ev.title || 'Новинка'));
-            }
+          const popData = await popRes.json();
+          const items = popData.result?.tracks || [];
+          for (const item of items.slice(0, 20)) {
+            const t = item.track || item;
+            addTrack(t, 'Новинка');
           }
-        } catch (feedErr) {
-          console.warn('Feed personal error:', feedErr);
+        } catch (popErr) {
+          console.warn('Feed 2440 error:', popErr);
         }
       }
 
       return {
-        tracks: extractedTracks.slice(0, 20),
+        tracks: extractedTracks.slice(0, 30),
         generatedPlaylists: []
       };
     } catch (e) {

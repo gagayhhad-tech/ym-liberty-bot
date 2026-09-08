@@ -1,4 +1,25 @@
-﻿const path = require('path');
+﻿const handlers = {
+  version: require('./_handlers/version'),
+  stream: require('./_handlers/stream'),
+  library: require('./_handlers/library'),
+  search: require('./_handlers/search'),
+  artist: require('./_handlers/artist'),
+  album: require('./_handlers/album'),
+  playlist: require('./_handlers/playlist'),
+  playlists: require('./_handlers/playlists'),
+  'playlist-add': require('./_handlers/playlist-add'),
+  like: require('./_handlers/like'),
+  feedback: require('./_handlers/feedback'),
+  popular: require('./_handlers/popular'),
+  auth: require('./_handlers/auth'),
+  'proxy-audio': require('./_handlers/proxy-audio'),
+  proxy: require('./_handlers/proxy'),
+  report: require('./_handlers/report'),
+  bot: require('./_handlers/bot'),
+  vibe: require('./_handlers/vibe'),
+  test: require('./_handlers/test'),
+  libertyList: require('./_handlers/libertyList'),
+};
 
 module.exports = async (req, res) => {
   let endpoint = '';
@@ -16,17 +37,15 @@ module.exports = async (req, res) => {
     endpoint = 'version';
   }
 
-  const safeEndpoint = path.basename(endpoint);
+  const handler = handlers[endpoint];
+  if (!handler) {
+    return res.status(404).json({ error: `Endpoint /api/${endpoint} not found` });
+  }
 
   try {
-    const handlerPath = path.join(__dirname, '_handlers', `${safeEndpoint}.js`);
-    const handler = require(handlerPath);
     return await handler(req, res);
   } catch (err) {
-    if (err.code === 'MODULE_NOT_FOUND') {
-      return res.status(404).json({ error: `Endpoint /api/${safeEndpoint} not found` });
-    }
-    console.error(`Error in gateway /api/${safeEndpoint}:`, err);
+    console.error(`Error in /api/${endpoint}:`, err);
     if (!res.headersSent) {
       return res.status(500).json({ error: 'Internal Server Error', message: err.message });
     }

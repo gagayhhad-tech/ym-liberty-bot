@@ -3118,8 +3118,8 @@ function initEqualizerAndQualityUI() {
 // In-App Auto-Update System (Vercel Host)
 // ==========================================
 function getAppVersionInfo() {
-  let versionCode = 13;
-  let versionName = '1.0.12';
+  let versionCode = 14;
+  let versionName = '1.0.13';
   if (window.AndroidBridge) {
     if (typeof window.AndroidBridge.getVersionCode === 'function') {
       try { versionCode = window.AndroidBridge.getVersionCode() || 4; } catch (e) {}
@@ -4031,18 +4031,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Search Tag Chips Click
-  document.querySelectorAll('.search-tag-chip').forEach(chip => {
-    chip.addEventListener('click', () => {
-      const q = chip.getAttribute('data-query');
-      const input = document.getElementById('search-input');
-      if (input && q) {
-        input.value = q;
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.focus();
-      }
-    });
-  });
 
   initVibeMoodChips();
   updateWaveStatsDisplay();

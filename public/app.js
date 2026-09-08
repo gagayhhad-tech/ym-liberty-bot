@@ -1183,6 +1183,10 @@ function updateTrackUI(trackInfo) {
   blobs.forEach(blob => {
     blob.style.backgroundImage = `url(${trackInfo.cover})`;
   });
+
+  if (typeof updateVibeAmbientAura === 'function') {
+    updateVibeAmbientAura(trackInfo.cover);
+  }
   
   dom.miniPlayer.classList.remove('hidden');
   
@@ -3100,8 +3104,8 @@ function initEqualizerAndQualityUI() {
 // In-App Auto-Update System (Vercel Host)
 // ==========================================
 function getAppVersionInfo() {
-  let versionCode = 6;
-  let versionName = '1.0.5';
+  let versionCode = 7;
+  let versionName = '1.0.6';
   if (window.AndroidBridge) {
     if (typeof window.AndroidBridge.getVersionCode === 'function') {
       try { versionCode = window.AndroidBridge.getVersionCode() || 4; } catch (e) {}
@@ -3422,6 +3426,282 @@ function initHomeNewReleases() {
   loadHomeNewReleases();
 }
 
+// ==========================================
+// Vibe Ambient Fluid Aura (Audio-Reactive Mesh)
+// ==========================================
+let vibeAuraCtx = null;
+let vibeAuraCanvas = null;
+let vibeAuraWidth = 0;
+let vibeAuraHeight = 0;
+let vibeAuraAnimFrame = null;
+let vibeAuraAnalyser = null;
+let vibeAuraFreqData = null;
+
+// Palette: default Yandex Music golden yellow & electric blues
+let auraCurrentColors = [
+  { r: 254, g: 212, b: 43 },  // YM Gold
+  { r: 35, g: 110, b: 240 },  // Electric Blue
+  { r: 120, g: 30, b: 210 }   // Deep Violet
+];
+let auraTargetColors = [
+  { r: 254, g: 212, b: 43 },
+  { r: 35, g: 110, b: 240 },
+  { r: 120, g: 30, b: 210 }
+];
+
+// Blobs parameters for smooth organic wandering
+const AURA_BLOBS = [
+  { baseX: 0.5, baseY: 0.35, radiusRatio: 0.55, speedX: 0.0008, speedY: 0.0011, phaseX: 0, phaseY: 1.2, colorIdx: 0 },
+  { baseX: 0.3, baseY: 0.45, radiusRatio: 0.45, speedX: 0.0012, speedY: 0.0009, phaseX: 2.1, phaseY: 3.5, colorIdx: 1 },
+  { baseX: 0.7, baseY: 0.4, radiusRatio: 0.48, speedX: 0.0010, speedY: 0.0013, phaseX: 4.3, phaseY: 0.8, colorIdx: 2 }
+];
+
+function initVibeAmbientAura() {
+  vibeAuraCanvas = document.getElementById('vibe-ambient-canvas');
+  if (!vibeAuraCanvas) return;
+  vibeAuraCtx = vibeAuraCanvas.getContext('2d');
+
+  function resizeAura() {
+    if (!vibeAuraCanvas) return;
+    const rect = vibeAuraCanvas.parentElement ? vibeAuraCanvas.parentElement.getBoundingClientRect() : { width: window.innerWidth, height: 350 };
+    vibeAuraWidth = Math.max(rect.width, 300);
+    vibeAuraHeight = Math.max(rect.height, 260);
+    vibeAuraCanvas.width = vibeAuraWidth;
+    vibeAuraCanvas.height = vibeAuraHeight;
+  }
+  window.addEventListener('resize', resizeAura);
+  resizeAura();
+
+  renderAuraFrame();
+}
+
+function updateVibeAmbientAura(coverUrl) {
+  if (!coverUrl || coverUrl === '/favicon.png') return;
+  try {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const offCanvas = document.createElement('canvas');
+        offCanvas.width = 16;
+        offCanvas.height = 16;
+        const offCtx = offCanvas.getContext('2d');
+        offCtx.drawImage(img, 0, 0, 16, 16);
+        const data = offCtx.getImageData(0, 0, 16, 16).data;
+        const candidates = [];
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i], g = data[i+1], b = data[i+2];
+          const max = Math.max(r, g, b), min = Math.min(r, g, b);
+          const sat = max === 0 ? 0 : (max - min) / max;
+          const lum = (r * 299 + g * 587 + b * 114) / 1000;
+          if (lum > 25 && lum < 235 && sat > 0.15) {
+            candidates.push({ r, g, b, sat, lum });
+          }
+        }
+        candidates.sort((a, b) => b.sat - a.sat);
+        if (candidates.length >= 3) {
+          auraTargetColors[0] = { r: candidates[0].r, g: candidates[0].g, b: candidates[0].b };
+          auraTargetColors[1] = { r: candidates[Math.floor(candidates.length / 3)].r, g: candidates[Math.floor(candidates.length / 3)].g, b: candidates[Math.floor(candidates.length / 3)].b };
+          auraTargetColors[2] = { r: candidates[Math.floor(candidates.length * 2 / 3)].r, g: candidates[Math.floor(candidates.length * 2 / 3)].g, b: candidates[Math.floor(candidates.length * 2 / 3)].b };
+        } else if (candidates.length >= 1) {
+          const p = candidates[0];
+          auraTargetColors[0] = { r: p.r, g: p.g, b: p.b };
+          auraTargetColors[1] = { r: Math.min(255, p.r + 30), g: Math.max(0, p.g - 20), b: Math.min(255, p.b + 60) };
+          auraTargetColors[2] = { r: Math.max(0, p.r - 40), g: Math.min(255, p.g + 50), b: Math.min(255, p.b + 20) };
+        }
+      } catch (e) {}
+    };
+    img.src = coverUrl;
+  } catch (e) {}
+}
+
+function getAuraPulseFactor() {
+  if (typeof eqAudioCtx !== 'undefined' && eqAudioCtx) {
+    if (!vibeAuraAnalyser) {
+      try {
+        vibeAuraAnalyser = eqAudioCtx.createAnalyser();
+        vibeAuraAnalyser.fftSize = 64;
+        vibeAuraAnalyser.smoothingTimeConstant = 0.8;
+        vibeAuraFreqData = new Uint8Array(vibeAuraAnalyser.frequencyBinCount);
+        if (typeof eqFilters !== 'undefined' && eqFilters && eqFilters.length > 0) {
+          eqFilters[eqFilters.length - 1].connect(vibeAuraAnalyser);
+        } else if (typeof eqSourceA !== 'undefined' && eqSourceA) {
+          eqSourceA.connect(vibeAuraAnalyser);
+        }
+      } catch (e) {}
+    }
+    if (vibeAuraAnalyser && state.isPlaying) {
+      vibeAuraAnalyser.getByteFrequencyData(vibeAuraFreqData);
+      const bass = (vibeAuraFreqData[0] + vibeAuraFreqData[1] + vibeAuraFreqData[2]) / 3 / 255;
+      return 1.0 + bass * 0.35;
+    }
+  }
+  if (state.isPlaying) {
+    const t = Date.now() * 0.003;
+    return 1.0 + Math.sin(t) * 0.08 + Math.sin(t * 1.8) * 0.04;
+  }
+  return 1.0;
+}
+
+function renderAuraFrame() {
+  vibeAuraAnimFrame = requestAnimationFrame(renderAuraFrame);
+  if (!vibeAuraCtx || !vibeAuraCanvas) return;
+
+  const vibeView = document.getElementById('view-vibe');
+  if (vibeView && !vibeView.classList.contains('active')) return;
+
+  const now = Date.now();
+  const pulse = getAuraPulseFactor();
+
+  for (let i = 0; i < 3; i++) {
+    auraCurrentColors[i].r += (auraTargetColors[i].r - auraCurrentColors[i].r) * 0.04;
+    auraCurrentColors[i].g += (auraTargetColors[i].g - auraCurrentColors[i].g) * 0.04;
+    auraCurrentColors[i].b += (auraTargetColors[i].b - auraCurrentColors[i].b) * 0.04;
+  }
+
+  vibeAuraCtx.clearRect(0, 0, vibeAuraWidth, vibeAuraHeight);
+
+  AURA_BLOBS.forEach((blob) => {
+    const offsetX = Math.sin(now * blob.speedX + blob.phaseX) * (vibeAuraWidth * 0.18);
+    const offsetY = Math.cos(now * blob.speedY + blob.phaseY) * (vibeAuraHeight * 0.14);
+    const cx = vibeAuraWidth * blob.baseX + offsetX;
+    const cy = vibeAuraHeight * blob.baseY + offsetY;
+    const radius = Math.min(vibeAuraWidth, vibeAuraHeight) * blob.radiusRatio * pulse;
+
+    const col = auraCurrentColors[blob.colorIdx] || auraCurrentColors[0];
+    const grad = vibeAuraCtx.createRadialGradient(cx, cy, radius * 0.05, cx, cy, radius);
+    grad.addColorStop(0, `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, 0.85)`);
+    grad.addColorStop(0.4, `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, 0.45)`);
+    grad.addColorStop(0.75, `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, 0.15)`);
+    grad.addColorStop(1, `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, 0)`);
+
+    vibeAuraCtx.fillStyle = grad;
+    vibeAuraCtx.beginPath();
+    vibeAuraCtx.arc(cx, cy, radius, 0, Math.PI * 2);
+    vibeAuraCtx.fill();
+  });
+}
+
+// ==========================================
+// Swipe Gesture Engine (Full Player & Mini Player)
+// ==========================================
+function initSwipeGestures() {
+  const fullPlayer = dom.fullPlayer;
+  const miniPlayer = dom.miniPlayer;
+
+  // 1. Full Player Gestures (Swipe Down to Close + Swipe Left/Right to Skip)
+  if (fullPlayer) {
+    let startX = 0, startY = 0, startTime = 0;
+    let isSwiping = false;
+    let swipeDirection = null; // 'v' or 'h'
+
+    fullPlayer.addEventListener('touchstart', (e) => {
+      if (e.target.closest('#progress-slider') || e.target.closest('.full-controls') || e.target.closest('#btn-track-menu')) {
+        return;
+      }
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+      startTime = Date.now();
+      isSwiping = true;
+      swipeDirection = null;
+    }, { passive: true });
+
+    fullPlayer.addEventListener('touchmove', (e) => {
+      if (!isSwiping) return;
+      const dx = e.touches[0].clientX - startX;
+      const dy = e.touches[0].clientY - startY;
+
+      if (!swipeDirection) {
+        if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) {
+          swipeDirection = 'v';
+        } else if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+          swipeDirection = 'h';
+        }
+      }
+
+      // Drag down to close
+      if (swipeDirection === 'v') {
+        if (dy > 0) {
+          fullPlayer.style.transition = 'none';
+          fullPlayer.style.transform = `translateY(${dy}px)`;
+        }
+      }
+      // Horizontal swipe over cover
+      else if (swipeDirection === 'h' && dom.fullCover) {
+        dom.fullCover.style.transition = 'none';
+        dom.fullCover.style.transform = `translateX(${dx * 0.35}px) rotate(${dx * 0.04}deg)`;
+      }
+    }, { passive: true });
+
+    const endHandler = (e) => {
+      if (!isSwiping) return;
+      isSwiping = false;
+      const dx = (e.changedTouches ? e.changedTouches[0].clientX : 0) - startX;
+      const dy = (e.changedTouches ? e.changedTouches[0].clientY : 0) - startY;
+      const duration = Date.now() - startTime;
+      const velocityY = dy / duration;
+      const velocityX = dx / duration;
+
+      if (swipeDirection === 'v') {
+        fullPlayer.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
+        if (dy > 110 || (dy > 50 && velocityY > 0.4)) {
+          fullPlayer.classList.add('translateY-100');
+          fullPlayer.style.transform = '';
+          if (navigator.vibrate) navigator.vibrate(10);
+        } else {
+          fullPlayer.style.transform = '';
+        }
+      } else if (swipeDirection === 'h') {
+        if (dom.fullCover) {
+          dom.fullCover.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
+          dom.fullCover.style.transform = '';
+        }
+        if (dx < -60 || (dx < -30 && velocityX < -0.3)) {
+          playNext();
+          if (navigator.vibrate) navigator.vibrate(15);
+        } else if (dx > 60 || (dx > 30 && velocityX > 0.3)) {
+          playPrev();
+          if (navigator.vibrate) navigator.vibrate(15);
+        }
+      }
+      swipeDirection = null;
+    };
+
+    fullPlayer.addEventListener('touchend', endHandler, { passive: true });
+    fullPlayer.addEventListener('touchcancel', endHandler, { passive: true });
+  }
+
+  // 2. Mini Player Gestures (Swipe Left/Right for Next/Prev, Swipe Up to Open)
+  if (miniPlayer) {
+    let mStartX = 0, mStartY = 0, mStartTime = 0;
+
+    miniPlayer.addEventListener('touchstart', (e) => {
+      if (e.target.closest('.mini-controls')) return;
+      mStartX = e.touches[0].clientX;
+      mStartY = e.touches[0].clientY;
+      mStartTime = Date.now();
+    }, { passive: true });
+
+    miniPlayer.addEventListener('touchend', (e) => {
+      if (e.target.closest('.mini-controls')) return;
+      const mDx = (e.changedTouches ? e.changedTouches[0].clientX : 0) - mStartX;
+      const mDy = (e.changedTouches ? e.changedTouches[0].clientY : 0) - mStartY;
+
+      if (mDy < -45 && Math.abs(mDy) > Math.abs(mDx)) {
+        dom.fullPlayer.classList.remove('translateY-100');
+        if (navigator.vibrate) navigator.vibrate(10);
+      } else if (Math.abs(mDx) > 45 && Math.abs(mDx) > Math.abs(mDy)) {
+        if (mDx < 0) {
+          playNext();
+        } else {
+          playPrev();
+        }
+        if (navigator.vibrate) navigator.vibrate(15);
+      }
+    }, { passive: true });
+  }
+}
+
 // Initialize on DOM load and user interaction
 document.addEventListener('DOMContentLoaded', () => {
   initVibeMoodChips();
@@ -3429,6 +3709,8 @@ document.addEventListener('DOMContentLoaded', () => {
   initEqualizerAndQualityUI();
   initAppUpdater();
   initHomeNewReleases();
+  initVibeAmbientAura();
+  initSwipeGestures();
 });
 
 // Also initialize immediately in case DOM is already ready
@@ -3438,6 +3720,8 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
   initEqualizerAndQualityUI();
   initAppUpdater();
   initHomeNewReleases();
+  initVibeAmbientAura();
+  initSwipeGestures();
 }
 
 // Lazy audio context unlock on first user click/touch
@@ -3451,3 +3735,4 @@ const unlockAudioCtx = () => {
 };
 window.addEventListener('click', unlockAudioCtx, { once: true });
 window.addEventListener('touchstart', unlockAudioCtx, { once: true });
+

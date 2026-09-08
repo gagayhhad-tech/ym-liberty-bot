@@ -1,3 +1,12 @@
+// Global window.alert override (replace ancient Android dialogs with modern in-app glass toast)
+window.alert = function(msg) {
+  if (typeof showToast === 'function') {
+    showToast(String(msg), 'bi-exclamation-circle');
+  } else {
+    console.warn('[Alert]:', msg);
+  }
+};
+
 // --- DOM Elements ---
 const dom = {
   views: document.querySelectorAll('.view'),
@@ -884,7 +893,7 @@ async function playTrack(id, title, artist, cover, explicit, isLiberty, artistId
     
     const data = await fetchTrackStream(idStr);
     if (!data || !data.streamUrl) {
-      alert(`Ошибка воспроизведения: нет ссылки на поток`);
+      showToast('Ошибка воспроизведения: нет ссылки на поток', 'bi-exclamation-circle');
       return;
     }
     
@@ -896,7 +905,8 @@ async function playTrack(id, title, artist, cover, explicit, isLiberty, artistId
     setTimeout(preloadNextTrack, 500);
   } catch (e) {
     console.error("Play error:", e);
-    alert("Сетевая ошибка при загрузке трека");
+    showToast('Сетевая ошибка при загрузке трека', 'bi-wifi-off');
+    if (state.queueMode === 'vibe' || state.queue.length > 1) { setTimeout(() => { if (!state.isPlaying) playNext(); }, 1400); }
   }
 }
 
@@ -1447,7 +1457,7 @@ async function startVibe() {
     let data = await YandexClient.getVibe(state.token, lastHeardId, 'user:onyourwave');
     
     if (data.shadowbanned) {
-      alert("Яндекс выдал вам Теневой Бан (одна реклама). Создайте новый аккаунт!");
+      showToast('Яндекс ограничил аккаунт. Попробуйте сменить станцию', 'bi-exclamation-triangle');
       dom.vibePlayBtn.innerHTML = '<i class="bi bi-play-fill"></i>';
       return;
     }
@@ -1484,7 +1494,7 @@ async function startVibe() {
     }
   } catch (e) {
     console.error("Vibe start error", e);
-    alert("Ошибка Волны");
+    showToast('Ошибка загрузки Волны', 'bi-exclamation-circle');
     dom.vibePlayBtn.innerHTML = '<i class="bi bi-play-fill"></i>';
   }
 }
@@ -2393,12 +2403,12 @@ async function openPlaylistChooser(trackId) {
           try {
             const addData = await YandexClient.addTrackToPlaylist(pl.kind, trackId, null, state.token);
             if (addData && addData.success) {
-              alert(`Трек успешно добавлен в плейлист "${pl.title}"!`);
+              showToast(`Трек добавлен в плейлист "${pl.title}"`, 'bi-check2-circle');
             } else {
-              alert('Не удалось добавить трек: ' + (addData.error || 'Ошибка'));
+              showToast('Не удалось добавить трек: ' + (addData.error || 'Ошибка'), 'bi-exclamation-circle');
             }
           } catch(err) {
-            alert('Сетевая ошибка при добавлении');
+            showToast('Сетевая ошибка при добавлении в плейлист', 'bi-wifi-off');
           }
           closePlaylistChooser();
           closeActionSheet();
@@ -3118,8 +3128,8 @@ function initEqualizerAndQualityUI() {
 // In-App Auto-Update System (Vercel Host)
 // ==========================================
 function getAppVersionInfo() {
-  let versionCode = 14;
-  let versionName = '1.0.13';
+  let versionCode = 15;
+  let versionName = '1.0.14';
   if (window.AndroidBridge) {
     if (typeof window.AndroidBridge.getVersionCode === 'function') {
       try { versionCode = window.AndroidBridge.getVersionCode() || 4; } catch (e) {}

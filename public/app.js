@@ -3060,8 +3060,8 @@ function initEqualizerAndQualityUI() {
 // In-App Auto-Update System (Vercel Host)
 // ==========================================
 function getAppVersionInfo() {
-  let versionCode = 4;
-  let versionName = '1.0.3';
+  let versionCode = 5;
+  let versionName = '1.0.4';
   if (window.AndroidBridge) {
     if (typeof window.AndroidBridge.getVersionCode === 'function') {
       try { versionCode = window.AndroidBridge.getVersionCode() || 4; } catch (e) {}

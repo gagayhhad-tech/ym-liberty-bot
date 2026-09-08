@@ -3253,6 +3253,8 @@ function initAppUpdater() {
 // Home Screen: Personalized New Releases (Новинки и Премьеры)
 // ==========================================
 let homeReleasesCache = null;
+let homeReleasesCacheTime = 0;
+const HOME_RELEASES_TTL_MS = 30 * 60 * 1000; // 30 минут
 let homeReleasesLoading = false;
 
 function escapeHtml(str) {
@@ -3270,7 +3272,12 @@ async function loadHomeNewReleases(force = false) {
   if (!container) return;
 
   if (homeReleasesLoading) return;
-  if (!force && homeReleasesCache && homeReleasesCache.length > 0) {
+
+  // Инвалидируем кэш по TTL (30 минут)
+  const now = Date.now();
+  const cacheExpired = (now - homeReleasesCacheTime) > HOME_RELEASES_TTL_MS;
+
+  if (!force && homeReleasesCache && homeReleasesCache.length > 0 && !cacheExpired) {
     renderHomeReleases(homeReleasesCache);
     return;
   }
@@ -3295,6 +3302,7 @@ async function loadHomeNewReleases(force = false) {
     
     if (tracks.length > 0) {
       homeReleasesCache = tracks;
+      homeReleasesCacheTime = Date.now(); // Сохраняем время загрузки
       renderHomeReleases(tracks);
     } else {
       container.innerHTML = `

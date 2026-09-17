@@ -1,19 +1,40 @@
 const fs = require("fs");
 const path = require("path");
 
-// Single source of truth for the released build. The APK, the web app and this
-// endpoint are all versioned here, so a release only has to update one file
-// (public/version.json). Previously the values were duplicated in this handler
-// and silently drifted out of sync with version.json.
-const VERSION_FILE = path.join(__dirname, "..", "..", "public", "version.json");
+// Version metadata is read from public/version.json so the release only has to
+// be updated in one place.
+//
+// IMPORTANT: on Vercel the serverless bundle does NOT include ../../public, so
+// a plain relative readFileSync throws ENOENT and the endpoint answers 500.
+// That silently broke /api/version once. We therefore probe several locations
+// and, if none of them work, fall back to values embedded at deploy time.
+const CANDIDATES = [
+  path.join(__dirname, "..", "..", "public", "version.json"), // local / Amvera
+  path.join(process.cwd(), "public", "version.json"),         // vercel cwd = repo root
+  path.join(__dirname, "version.json"),                       // bundled next to handler
+];
+
+// Keep this as a last-resort fallback only. It must match public/version.json.
+const FALLBACK = {
+  versionCode: 16,
+  versionName: "1.0.15",
+  apkUrl: "https://ym-liberty-bot.vercel.app/YMLiberty.apk",
+  changelog: "",
+  releaseDate: null,
+  minSupportedVersion: 1,
+};
 
 function loadVersion() {
-  const raw = fs.readFileSync(VERSION_FILE, "utf8");
-  const data = JSON.parse(raw);
-  if (!data || typeof data.versionCode !== "number") {
-    throw new Error("version.json is missing a numeric versionCode");
+  for (const file of CANDIDATES) {
+    try {
+      const raw = fs.readFileSync(file, "utf8");
+      const data = JSON.parse(raw);
+      if (data && typeof data.versionCode === "number") return data;
+    } catch (e) {
+      // try the next candidate
+    }
   }
-  return data;
+  return FALLBACK;
 }
 
 module.exports = async (req, res) => {
@@ -26,24 +47,24 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  try {
-    const data = loadVersion();
-    // The client also fetches /version.json directly, so both shapes are kept
-    // identical: changelog stays an array here as well.
-    return res.status(200).json({
-      versionCode: data.versionCode,
-      versionName: data.versionName,
-      apkUrl: data.apkUrl,
-      changelog: Array.isArray(data.changelog)
-        ? data.changelog
-        : String(data.changelog || "").split("\n").filter(Boolean),
-      releaseDate: data.releaseDate || null,
-      minSupportedVersion: data.minSupportedVersion || 1,
-    });
-  } catch (err) {
-    console.error("version handler error:", err);
-    // Never let the updater see a 200 with a broken payload: it would make the
-    // app believe it is up to date.
+  const data = loadVersion();
+
+  // A 200 with a malformed body would make the in-app updater believe it is up
+  // to date, so the payload is always validated before being sent.
+  if (!data || typeof data.versionCode !== "number" || !data.apkUrl) {
     return res.status(500).json({ error: "Version metadata unavailable" });
   }
+
+  const changelog = Array.isArray(data.changelog)
+    ? data.changelog
+    : String(data.changelog || "").split("\n").filter(Boolean);
+
+  return res.status(200).json({
+    versionCode: data.versionCode,
+    versionName: data.versionName,
+    apkUrl: data.apkUrl,
+    changelog: changelog,
+    releaseDate: data.releaseDate || null,
+    minSupportedVersion: data.minSupportedVersion || 1,
+  });
 };

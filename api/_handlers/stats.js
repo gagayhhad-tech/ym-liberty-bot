@@ -1,16 +1,21 @@
-const axios = require('axios');
-
 // Per-user listening counters (tracks + minutes), keyed by Yandex uid.
 //
-// GET  reads the stored counters for the verified user.
+// GET  reads the stored counters for a uid.
 // POST merges them into the stored record so two devices cannot clobber each
 // other: totals take the larger value, and the daily counters only take part
 // when both sides agree on the date.
 //
-// Storage: Upstash Redis REST (Vercel KV is Upstash under the hood, so its
-// env names are accepted too). Vercel serverless has no persistent disk, so
-// the counters cannot live in a local file here. Configure ONE of these env
-// pairs on the deployment:
+// IMPORTANT: this endpoint never calls the Yandex API. Yandex rejects requests
+// from datacenter IPs (this project runs on Vercel in fra1), which is exactly
+// why the client talks to Yandex directly from the user's device. So the uid is
+// supplied by the client, which resolves it device-side via account/status.
+// The tradeoff: the server cannot prove the caller owns that uid, so counters
+// are forgeable. They are listening tallies — no credentials and nothing
+// private — so that is an acceptable cost for a working sync.
+//
+// Storage: Upstash Redis REST (Vercel KV is Upstash under the hood, so its env
+// names are accepted too). Vercel serverless has no persistent disk, so the
+// counters cannot live in a local file here. Configure ONE of these env pairs:
 //   UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN   (Upstash)
 //   KV_REST_API_URL       + KV_REST_API_TOKEN            (Vercel KV)
 // Without them the endpoint answers 503 and the client keeps the counters
@@ -35,33 +40,28 @@ function setCors(res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 }
 
-// Resolve the verified Yandex uid from the OAuth token, mirroring the other
-// handlers so the client cannot forge another user's stats key.
-async function resolveUid(token) {
-  const rawToken = String(token || '').replace(/^OAuth\s+/i, '').replace(/^Bearer\s+/i, '').trim();
-  if (!rawToken) return null;
-  const res = await axios.get('https://api.music.yandex.net/account/status', {
-    headers: {
-      'Authorization': `OAuth ${rawToken}`,
-      'X-Yandex-Music-Client': 'YandexMusicAndroid/24023231'
-    },
-    timeout: 10000
-  });
-  return res.data?.result?.account?.uid || null;
-}
-
 // Upstash command API: POST the Redis command as a JSON array.
 async function kv(command) {
-  const res = await axios.post(KV_URL, command, {
+  const res = await fetch(KV_URL, {
+    method: 'POST',
     headers: { 'Authorization': `Bearer ${KV_TOKEN}`, 'Content-Type': 'application/json' },
-    timeout: 10000
+    body: JSON.stringify(command)
   });
-  return res.data?.result;
+  if (!res.ok) throw new Error('KV HTTP ' + res.status);
+  const data = await res.json();
+  return data?.result;
 }
 
 function nonNegInt(v) {
   const n = Number(v);
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+}
+
+// Yandex uids are numeric. Rejecting anything else keeps the key namespace
+// clean and stops a caller from smuggling a Redis key separator through it.
+function sanitizeUid(v) {
+  const s = String(v ?? '').trim();
+  return /^\d{1,20}$/.test(s) ? s : null;
 }
 
 module.exports = async function (req, res) {
@@ -74,15 +74,10 @@ module.exports = async function (req, res) {
     });
   }
 
-  const token = req.query?.token || req.body?.token || req.headers?.authorization?.replace(/^OAuth\s+/i, '');
-
-  let uid;
-  try {
-    uid = await resolveUid(token);
-  } catch (e) {
-    return res.status(401).json({ error: 'Unauthorized' });
+  const uid = sanitizeUid(req.query?.uid ?? req.body?.uid);
+  if (!uid) {
+    return res.status(400).json({ error: 'Missing or invalid uid' });
   }
-  if (!uid) return res.status(401).json({ error: 'Unauthorized' });
 
   const key = `ymstats:${uid}`;
   const today = new Date().toISOString().slice(0, 10);
@@ -95,7 +90,7 @@ module.exports = async function (req, res) {
         totalSeconds: nonNegInt(b.totalSeconds),
         todayTracks: nonNegInt(b.todayTracks),
         todaySeconds: nonNegInt(b.todaySeconds),
-        date: typeof b.date === 'string' && b.date ? b.date : today
+        date: typeof b.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.date) ? b.date : today
       };
 
       const raw = await kv(['GET', key]);
@@ -134,7 +129,7 @@ module.exports = async function (req, res) {
     try { data = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { data = {}; }
     return res.json(data || {});
   } catch (e) {
-    console.error('stats handler error:', e.response?.status, e.response?.data || e.message);
+    console.error('stats handler error:', e.message);
     return res.status(500).json({ error: 'Stats storage error' });
   }
 };

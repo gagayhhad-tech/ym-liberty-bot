@@ -1,11 +1,11 @@
 {
-  "versionCode": 30,
-  "versionName": "1.1.13",
+  "versionCode": 31,
+  "versionName": "1.1.14",
   "apkUrl": "https://ym-liberty-bot.vercel.app/YMLiberty.apk",
   "releaseDate": "2026-09-24",
   "changelog": [
-    "Исправлено скачивание через get-file-info и AES-CTR расшифровку",
-    "Обычная загрузка использует FLAC, кэш — MP3 320",
-    "Добавлены индикатор прогресса и иконка загруженного трека"
+    "Исправлен VerifyError в AndroidBridge",
+    "Скачивание использует get-file-info и AES-CTR расшифровку",
+    "Добавлены прогресс загрузки и отметка загруженных треков"
   ]
 }

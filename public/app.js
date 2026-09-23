@@ -2515,11 +2515,13 @@ function parseLrc(text) {
 }
 
 function lrcTimeToSeconds(str) {
-  const parts = str.replace('.', ':').split(':');
-  if (parts.length < 2) return null;
-  const mins = parseInt(parts[0], 10) || 0;
-  const secs = parseFloat(parts[1]) || 0;
-  return mins * 60 + secs;
+  const match = String(str).match(/^(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?$/);
+  if (!match) return null;
+  const mins = Number(match[1]);
+  const secs = Number(match[2]);
+  const fraction = match[3] ? Number(`0.${match[3]}`) : 0;
+  if (!Number.isFinite(mins) || !Number.isFinite(secs) || secs >= 60) return null;
+  return mins * 60 + secs + fraction;
 }
 
 // Render the current state.lyricsLines into the panel. Synchronized lines get
@@ -2564,11 +2566,13 @@ async function loadLyricsForCurrentTrack() {
   if (dom.btnLyrics && track && track.id) dom.btnLyrics.classList.remove('hidden');
 
   if (!track || !track.id || !state.token) {
+    ylog('LYRICS', `skip track=${track?.id || 'none'} token=${state.token ? 'yes' : 'no'}`);
     state.lyricsLines = [];
     if (state.lyricsOpen) renderLyrics();
     return;
   }
   const trackId = String(track.id);
+  const durationMs = Number(track.durationMs || track.track?.durationMs || 0);
 
   // The panel is already open from the previous track, so show a spinner until
   // this one's text arrives instead of leaving stale lines on screen.
@@ -2579,8 +2583,9 @@ async function loadLyricsForCurrentTrack() {
 
   let result = null;
   try {
-    result = await YandexClient.getLyrics(trackId, state.token, true);
+    result = await YandexClient.getLyrics(trackId, state.token, true, durationMs);
   } catch (e) {
+    ylogError('LYRICS', `request exception track=${trackId}: ${e?.message || e}`);
     result = null;
   }
   // A newer track started while this was in flight — drop the stale result.
@@ -2590,6 +2595,7 @@ async function loadLyricsForCurrentTrack() {
   state.lyricsTrackId = trackId;
 
   if (!result || !result.text) {
+    ylogError('LYRICS', `empty result track=${trackId}`);
     state.lyricsLines = [];
     if (state.lyricsOpen) renderLyrics();
     return;
@@ -2598,6 +2604,7 @@ async function loadLyricsForCurrentTrack() {
   // Synchronized LRC parses to timed lines; if the track only had plain TEXT
   // (no timestamps), fall back to one line per paragraph, unhighlighted.
   const parsed = result.sync ? parseLrc(result.text) : [];
+  ylog('LYRICS', `loaded track=${trackId} sync=${result.sync} chars=${result.text.length} lines=${parsed.length}`);
   if (parsed.length > 0) {
     state.lyricsLines = parsed;
   } else {
@@ -2622,12 +2629,14 @@ function toggleLyrics(force) {
   if (willOpen) {
     dom.fullLyrics.classList.remove('hidden');
     dom.fullCover.style.opacity = '0';
+    dom.fullPlayer.classList.add('lyrics-mode');
     if (btnLyricsIcon) btnLyricsIcon.className = 'bi bi-x-lg';
     renderLyrics();
     updateLyricsHighlight();
   } else {
     dom.fullLyrics.classList.add('hidden');
     dom.fullCover.style.opacity = '';
+    dom.fullPlayer.classList.remove('lyrics-mode');
     // bi-music-note-text does not exist in Bootstrap Icons 1.11.3 — it
     // rendered as an empty glyph, so the button looked invisible.
     if (btnLyricsIcon) btnLyricsIcon.className = 'bi bi-card-text';
@@ -2882,14 +2891,27 @@ async function enqueueTrackDownload(track, artistName, trackId, toCache) {
   try {
     const data = await fetchTrackStream(trackId, true);
     streamUrl = data && data.streamUrl;
+    let streamHost = 'none';
+    try {
+      streamHost = streamUrl ? new URL(streamUrl).hostname : 'none';
+    } catch (_) {
+      streamHost = 'invalid';
+    }
+    ylog('DOWNLOAD', `stream resolved track=${trackId} host=${streamHost}`);
   } catch (e) {
-    console.error('Download: could not resolve stream URL', e);
+    ylogError('DOWNLOAD', `stream resolve failed track=${trackId}: ${e?.message || e}`);
     return false;
   }
 
-  if (!streamUrl) return false;
+  if (!streamUrl) {
+    ylogError('DOWNLOAD', `empty stream URL track=${trackId}`);
+    return false;
+  }
   // The native guard only accepts https; a relative URL would be rejected there.
-  if (!/^https:\/\//i.test(streamUrl)) return false;
+  if (!/^https:\/\//i.test(streamUrl)) {
+    ylogError('DOWNLOAD', `unsupported stream scheme track=${trackId}`);
+    return false;
+  }
 
   const { ext, mime } = detectAudioFormat(streamUrl);
   const title = track.title || track.track?.title || 'Трек';
@@ -2897,9 +2919,11 @@ async function enqueueTrackDownload(track, artistName, trackId, toCache) {
   const fileName = buildDownloadFileName(artist, title, ext);
 
   try {
-    return Boolean(window.AndroidBridge.downloadTrack(streamUrl, fileName, mime, toCache));
+    const ok = Boolean(window.AndroidBridge.downloadTrack(streamUrl, fileName, mime, toCache));
+    ylog('DOWNLOAD', `bridge enqueue track=${trackId} ok=${ok} cache=${Boolean(toCache)} file=${fileName}`);
+    return ok;
   } catch (e) {
-    console.error('Download: bridge call failed', e);
+    ylogError('DOWNLOAD', `bridge exception track=${trackId}: ${e?.message || e}`);
     return false;
   }
 }

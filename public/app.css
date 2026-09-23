@@ -528,6 +528,7 @@ input:checked + .slider:before {
 }
 
 .full-cover-container {
+  position: relative;
   flex: 1;
   display: flex;
   align-items: center;
@@ -544,6 +545,11 @@ input:checked + .slider:before {
   transform: scale(0.92);
   transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s ease;
   will-change: transform, box-shadow;
+}
+
+.full-player.lyrics-mode .full-cover {
+  visibility: hidden;
+  opacity: 0;
 }
 
 .full-cover.playing {
@@ -575,11 +581,12 @@ input:checked + .slider:before {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(8, 8, 12, 0.78);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border-radius: 16px;
   overflow: hidden;
+  z-index: 3;
   transition: opacity 0.25s ease;
 }
 

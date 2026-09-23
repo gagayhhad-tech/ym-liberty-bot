@@ -70,6 +70,17 @@ const isLocal = typeof window !== 'undefined' && (
   (window.location.origin && window.location.origin.includes('localhost:3000'))
 );
 
+function yandexDiag(message, error = false) {
+  try {
+    const bridge = typeof window !== 'undefined' ? window.AndroidBridge : null;
+    const method = error ? 'logError' : 'logLine';
+    if (bridge && typeof bridge[method] === 'function') {
+      bridge[method]('Yandex', String(message));
+    }
+  } catch (_) {}
+  (error ? console.warn : console.log)('[Yandex]', message);
+}
+
 const YandexClient = {
   CLIENT_ID: '23cabbbdc6cd418abb4b39c32c41195d',
   CLIENT_SECRET: '53bc75238f0c4d08a118e51fe9203300',
@@ -136,6 +147,7 @@ const YandexClient = {
 
   async getStreamUrl(trackId, token) {
     const idStr = String(trackId);
+    yandexDiag(`stream start track=${idStr} local=${isLocal}`);
     if (isLocal) {
       const res = await fetch(`/api/stream?trackId=${encodeURIComponent(idStr)}&token=${encodeURIComponent(token || '')}`);
       const data = await res.json();
@@ -161,6 +173,7 @@ const YandexClient = {
       headers: this.getHeaders(token)
     });
     const data = await res.json();
+    yandexDiag(`download-info track=${idStr} http=${res.status} options=${Array.isArray(data.result) ? data.result.length : 0}`);
     if (!res.ok || data.error) throw new Error(data.error || 'Download info error');
 
     const options = data.result || [];
@@ -194,11 +207,13 @@ const YandexClient = {
       return (b.bitrateInKbps || 0) - (a.bitrateInKbps || 0);
     });
     const selected = pool[0] || options[0];
+    yandexDiag(`stream option track=${idStr} codec=${selected.codec || 'unknown'} bitrate=${selected.bitrateInKbps || 'unknown'}`);
 
     const xmlRes = await fetch(selected.downloadInfoUrl, {
       headers: this.getHeaders(token)
     });
     const xmlText = await xmlRes.text();
+    yandexDiag(`download-info xml track=${idStr} http=${xmlRes.status} bytes=${xmlText.length}`);
 
     const parseField = (field) => {
       const m = xmlText.match(new RegExp(`<${field}>([^<]+)<\/${field}>`));
@@ -212,9 +227,13 @@ const YandexClient = {
 
     if (!host || !path || !ts || !s) throw new Error('XML parsing failed');
 
-    const hash = md5('XGRSTTXRwy' + path.slice(1) + s);
+    // This is the public signing key used by Yandex for the legacy
+    // download-info -> direct audio URL flow. It is different from the key
+    // used by the lyrics endpoint.
+    const hash = md5('XGRlBW9FXlekgbPrRHuSiA' + path.slice(1) + s);
     const endpoint = selected.codec === 'flac' ? 'get-flac' : 'get-mp3';
     const directStreamUrl = `https://${host}/${endpoint}/${hash}/${ts}${path}`;
+    yandexDiag(`stream ready track=${idStr} host=${host} endpoint=${endpoint}`);
 
     return {
       trackId: idStr,
@@ -940,32 +959,41 @@ const YandexClient = {
   // seconds. This is the scheme the official Android client uses (LyricsHttpApi
   // + the sign helper in its decompiled code); the web client signs differently
   // (HMAC-SHA256), so the Android one is what works with the mobile API host.
-  LYRICS_SALT: 'XGRSTTXRwy',
+  // Lyrics requests use a different key from audio URL signing.
+  LYRICS_SALT: 'p93jhgh689SBReK6ghtw62',
 
   // LRC gives timestamped lines; TEXT is the unsynchronized fallback.
-  async getLyrics(trackId, token, preferSync = true) {
-    if (!token || !trackId) return null;
+  async getLyrics(trackId, token, preferSync = true, durationMs = 0) {
+    if (!token || !trackId) {
+      console.warn('Lyrics skipped: missing track or token');
+      return null;
+    }
     const idStr = String(trackId);
+    console.warn('Lyrics request start:', idStr, preferSync ? 'LRC' : 'TEXT');
     const timeStamp = Math.floor(Date.now() / 1000);
+    const duration = Math.max(0, Number(durationMs) || 0);
     // btoa is safe here: the signed string is digits + an ASCII salt.
     const sign = btoa(idStr + timeStamp + this.LYRICS_SALT);
     const format = preferSync ? 'LRC' : 'TEXT';
+    yandexDiag(`lyrics start track=${idStr} format=${format} durationMs=${duration}`);
 
     let info;
     try {
       const res = await fetch(
-        `https://api.music.yandex.net/tracks/${idStr}/lyrics?format=${format}&timeStamp=${timeStamp}&sign=${encodeURIComponent(sign)}`,
+        `https://api.music.yandex.net/tracks/${encodeURIComponent(idStr)}/lyrics?format=${format}&durationMs=${encodeURIComponent(duration)}&timeStamp=${timeStamp}&sign=${encodeURIComponent(sign)}`,
         { headers: this.getHeaders(token) }
       );
+      yandexDiag(`lyrics response track=${idStr} format=${format} http=${res.status}`);
       if (!res.ok) {
         console.warn('Lyrics request failed:', res.status, format);
-        return preferSync ? this.getLyrics(trackId, token, false) : null;
+        return preferSync ? this.getLyrics(trackId, token, false, duration) : null;
       }
       const data = await res.json();
       info = data.result || null;
+      yandexDiag(`lyrics payload track=${idStr} format=${format} keys=${info ? Object.keys(info).join(',') : 'none'}`);
     } catch (e) {
       console.warn('Lyrics request error:', e?.message || e);
-      return preferSync ? this.getLyrics(trackId, token, false) : null;
+      return preferSync ? this.getLyrics(trackId, token, false, duration) : null;
     }
     if (!info) return null;
 
@@ -984,14 +1012,15 @@ const YandexClient = {
 
     const downloadUrl = info.downloadUrl || info.url || info.result?.downloadUrl || info.result?.url;
     if (!downloadUrl) {
-      return preferSync ? this.getLyrics(trackId, token, false) : null;
+      return preferSync ? this.getLyrics(trackId, token, false, duration) : null;
     }
 
     try {
       const textRes = await fetch(downloadUrl, { headers: { Accept: 'text/plain,*/*' } });
-      if (!textRes.ok) return preferSync ? this.getLyrics(trackId, token, false) : null;
+      yandexDiag(`lyrics cdn track=${idStr} format=${format} http=${textRes.status}`);
+      if (!textRes.ok) return preferSync ? this.getLyrics(trackId, token, false, duration) : null;
       const text = await textRes.text();
-      if (!text.trim()) return preferSync ? this.getLyrics(trackId, token, false) : null;
+      if (!text.trim()) return preferSync ? this.getLyrics(trackId, token, false, duration) : null;
       return {
         lyricId: info.lyricId || info.lyricsId || info.externalLyricId || null,
         writers: Array.isArray(info.writers) ? info.writers : [],
@@ -999,7 +1028,7 @@ const YandexClient = {
         text
       };
     } catch (e) {
-      return preferSync ? this.getLyrics(trackId, token, false) : null;
+      return preferSync ? this.getLyrics(trackId, token, false, duration) : null;
     }
   }
 };

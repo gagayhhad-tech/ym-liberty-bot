@@ -1,11 +1,11 @@
 {
-  "versionCode": 35,
-  "versionName": "1.1.18",
+  "versionCode": 36,
+  "versionName": "1.1.19",
   "apkUrl": "https://ym-liberty-bot.vercel.app/YMLiberty.apk",
   "releaseDate": "2026-09-24",
   "changelog": [
-    "Добавлена расширенная диагностика native bridge загрузки",
-    "Проверена PC-схема get-file-info и AES-CTR",
-    "Исправления загрузки коллекции и прогресса сохранены"
+    "Исправлен ложный отказ native bridge перед запуском загрузки",
+    "Сохранены get-file-info, AES-CTR и загрузка коллекции",
+    "Ошибки native-загрузки записываются в лог"
   ]
 }

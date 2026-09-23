@@ -247,8 +247,9 @@ const YandexClient = {
     return status.uid;
   },
 
-  async getStreamUrl(trackId, token) {
+  async getStreamUrl(trackId, token, qualityOverride = null) {
     const idStr = String(trackId);
+    const requestedQuality = qualityOverride ? parseInt(qualityOverride, 10) : null;
     yandexDiag(`stream start track=${idStr} local=${isLocal}`);
     if (isLocal) {
       const res = await fetch(`/api/stream?trackId=${encodeURIComponent(idStr)}&token=${encodeURIComponent(token || '')}`);
@@ -262,7 +263,9 @@ const YandexClient = {
 
     // 1. Check Liberty DB
     const libertyList = await this.getLibertyList();
-    if (libertyList && libertyList[idStr]) {
+    // Liberty DB contains MP3 links only. Never use one when the caller
+    // explicitly requested lossless audio.
+    if (requestedQuality !== 1000 && libertyList && libertyList[idStr]) {
       return {
         trackId: idStr,
         streamUrl: libertyList[idStr],
@@ -280,7 +283,7 @@ const YandexClient = {
 
     const options = data.result || [];
     if (!options.length) throw new Error('No download info available');
-    const targetBitrate = parseInt(localStorage.getItem('ym_audio_quality') || '320', 10);
+    const targetBitrate = requestedQuality || parseInt(localStorage.getItem('ym_audio_quality') || '320', 10);
 
     // Yandex ships mp3 and flac variants. Pick the best option for the requested
     // quality without ever ending up with a codec/URL mismatch: the endpoint is

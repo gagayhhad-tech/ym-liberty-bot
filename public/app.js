@@ -599,17 +599,18 @@ const streamCache = new Map(); // id -> Promise<{ streamUrl, ... }>
 let preloadedTrack = null;     // { id, streamUrl, ... }
 let preloadPromise = null;
 
-async function fetchTrackStream(id, forceRefresh = false) {
+async function fetchTrackStream(id, forceRefresh = false, qualityOverride = null) {
   const idStr = String(id);
-  if (!forceRefresh && streamCache.has(idStr)) {
-    return streamCache.get(idStr);
+  const cacheKey = qualityOverride ? `${idStr}:${qualityOverride}` : idStr;
+  if (!forceRefresh && streamCache.has(cacheKey)) {
+    return streamCache.get(cacheKey);
   }
-  const p = YandexClient.getStreamUrl(idStr, state.token);
-  streamCache.set(idStr, p);
+  const p = YandexClient.getStreamUrl(idStr, state.token, qualityOverride);
+  streamCache.set(cacheKey, p);
   try {
     return await p;
   } catch(e) {
-    streamCache.delete(idStr);
+    streamCache.delete(cacheKey);
     throw e;
   }
 }
@@ -2889,7 +2890,10 @@ async function enqueueTrackDownload(track, artistName, trackId, toCache) {
 
   let streamUrl;
   try {
-    const data = await fetchTrackStream(trackId, true);
+    // User downloads are lossless FLAC; the private cache deliberately uses
+    // 320 kbps MP3 to avoid consuming excessive storage.
+    const downloadQuality = toCache ? 320 : 1000;
+    const data = await fetchTrackStream(trackId, true, downloadQuality);
     streamUrl = data && data.streamUrl;
     let streamHost = 'none';
     try {
@@ -2897,7 +2901,7 @@ async function enqueueTrackDownload(track, artistName, trackId, toCache) {
     } catch (_) {
       streamHost = 'invalid';
     }
-    ylog('DOWNLOAD', `stream resolved track=${trackId} host=${streamHost}`);
+    ylog('DOWNLOAD', `stream resolved track=${trackId} quality=${downloadQuality} host=${streamHost}`);
   } catch (e) {
     ylogError('DOWNLOAD', `stream resolve failed track=${trackId}: ${e?.message || e}`);
     return false;

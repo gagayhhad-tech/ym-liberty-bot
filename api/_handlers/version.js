@@ -16,17 +16,10 @@ const CANDIDATES = [
 
 // Keep this as a last-resort fallback only. It must match public/version.json.
 const FALLBACK = {
-  versionCode: 26,
-  versionName: "1.1.9",
+  versionCode: 27,
+  versionName: "1.1.10",
   apkUrl: "https://ym-liberty-bot.vercel.app/YMLiberty.apk",
-  changelog: [
-    "Исправлена подпись ссылок на аудиопоток для воспроизведения и скачивания",
-    "Добавлены расширенные диагностические логи для текстов и загрузок",
-    "Исправлена обработка времени LRC-текстов",
-    "Текст песни теперь открывается вместо обложки в полноэкранном плеере",
-    "Синхронизированы версия APK и конфигурация Apktool",
-  ],
-  releaseDate: "2026-09-24",
+  changelog: ["Обычная загрузка треков теперь запрашивает FLAC", "Кэш использует MP3 320 kbps для экономии памяти", "Добавлен контроль фактического статуса DownloadManager и причины ошибки", "Анимация синхронизированных текстов стала плавнее"],`r`n  releaseDate: "2026-09-24",
   minSupportedVersion: 1,
 };
 
@@ -74,4 +67,5 @@ module.exports = async (req, res) => {
     minSupportedVersion: data.minSupportedVersion || 1,
   });
 };
+
 

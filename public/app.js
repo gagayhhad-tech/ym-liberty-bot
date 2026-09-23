@@ -2930,7 +2930,9 @@ async function enqueueTrackDownload(track, artistName, trackId, toCache) {
     // 320 kbps MP3 to avoid consuming excessive storage.
     const downloadQuality = toCache ? 'nq' : 'lossless';
     const data = await YandexClient.getDownloadInfo(trackId, state.token, downloadQuality);
-    streamUrl = data && data.streamUrl;
+    // getDownloadInfo follows the PC client and returns `url`; the playback
+    // resolver uses the older `streamUrl` field.
+    streamUrl = data && (data.url || data.streamUrl);
     let streamHost = 'none';
     try {
       streamHost = streamUrl ? new URL(streamUrl).hostname : 'none';
@@ -2953,7 +2955,9 @@ async function enqueueTrackDownload(track, artistName, trackId, toCache) {
     return false;
   }
 
-  const { ext, mime } = detectAudioFormat(streamUrl);
+  const { ext, mime } = data.codec && String(data.codec).includes('flac')
+    ? { ext: 'flac', mime: 'audio/flac' }
+    : detectAudioFormat(streamUrl);
   const title = track.title || track.track?.title || 'Трек';
   const artist = artistName || (typeof track.artists === 'string' ? track.artists : '') || '';
   const fileName = buildDownloadFileName(artist, title, ext);

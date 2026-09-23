@@ -545,6 +545,9 @@ function renderTracks() {
     }
     const isExplicit = track.explicit || track.contentWarning === 'explicit';
     const badgeHtml = track.isLiberty ? `<span class="liberty-badge"><i class="bi bi-gem"></i></span>` : (isExplicit ? `<span class="explicit-badge">E</span>` : '');
+    const downloadedHtml = isTrackDownloaded(artist, track.title)
+      ? '<span class="track-download-state" title="Загружено"><i class="bi bi-check-circle-fill"></i></span>'
+      : '';
     div._trackData = track;
     div.innerHTML = `
       <img src="${coverUrl}" loading="lazy" alt="cover">
@@ -552,7 +555,7 @@ function renderTracks() {
         <div class="track-title"><span class="track-title-text">${escapeHtml(track.title)}</span>${badgeHtml}</div>
         <div class="track-artist">${artist}</div>
       </div>
-      <i class="bi bi-three-dots track-dots" style="color: var(--text-secondary);"></i>
+      ${downloadedHtml}<i class="bi bi-three-dots track-dots" style="color: var(--text-secondary);"></i>
     `;
     
     div.addEventListener('click', (e) => {
@@ -2860,6 +2863,39 @@ function formatDownloadQualityLabel() {
   const q = String(localStorage.getItem('ym_audio_quality') || '320');
   return q === '1000' ? 'FLAC' : `${q} kbps`;
 }
+
+function downloadStorageKey(fileName) {
+  return `ym_downloaded:${fileName}`;
+}
+
+function isTrackDownloaded(artist, title) {
+  return localStorage.getItem(
+    downloadStorageKey(buildDownloadFileName(artist, title, 'flac'))
+  ) === '1';
+}
+
+function setDownloadButtonsProgress(percent, active) {
+  ['as-btn-download', 'as-btn-download-cache'].forEach((id) => {
+    const button = document.getElementById(id);
+    if (!button) return;
+    button.classList.toggle('download-active', active);
+    button.style.setProperty('--download-progress', `${Math.max(0, Math.min(100, percent))}%`);
+  });
+}
+
+window.onTrackDownloadProgress = function(fileName, percent, done, error) {
+  if (error) {
+    setDownloadButtonsProgress(0, false);
+    showToast(`Ошибка загрузки: ${error}`, 'bi-exclamation-triangle');
+    return;
+  }
+  setDownloadButtonsProgress(percent, !done);
+  if (done) {
+    localStorage.setItem(downloadStorageKey(fileName), '1');
+    showToast(`Файл загружен: ${fileName}`, 'bi-check-circle-fill', 'success');
+    if (typeof renderTracks === 'function') renderTracks();
+  }
+};
 
 // Filenames come from track titles, which can carry any character. Strip the
 // ones that are illegal in a path or that the native guard rejects.

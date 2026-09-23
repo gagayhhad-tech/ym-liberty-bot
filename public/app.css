@@ -593,6 +593,7 @@ input:checked + .slider:before {
 .full-lyrics-lines {
   width: 100%;
   height: 100%;
+  box-sizing: border-box;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 42% 22px;
@@ -604,6 +605,7 @@ input:checked + .slider:before {
 }
 
 .lyric-line {
+  width: 100%;
   max-width: 30em;
   margin: 0 auto;
   padding: 10px 0;
@@ -613,7 +615,7 @@ input:checked + .slider:before {
   color: rgba(255, 255, 255, 0.34);
   opacity: 0.72;
   transform: scale(0.94);
-  transform-origin: left center;
+  transform-origin: center center;
   will-change: transform, opacity, color, filter;
   transition:
     color 0.72s cubic-bezier(0.22, 1, 0.36, 1),
@@ -637,6 +639,41 @@ input:checked + .slider:before {
 .lyric-line.meta {
   opacity: 0.45;
   transform: none;
+}
+
+.track-download-state {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  margin-right: 8px;
+  color: #8be28b;
+  font-size: 16px;
+  filter: drop-shadow(0 0 5px rgba(139, 226, 139, 0.35));
+}
+
+.as-btn.download-active {
+  --download-progress: 0%;
+  position: relative;
+  overflow: hidden;
+}
+
+.as-btn.download-active::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  transform: translateY(-50%);
+  background: conic-gradient(
+    var(--accent-color, #fed42b) var(--download-progress),
+    rgba(255, 255, 255, 0.16) var(--download-progress)
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 0);
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 0);
+  pointer-events: none;
 }
 
 /* Instrumental gaps and empty lines still need spacing, or two sung lines

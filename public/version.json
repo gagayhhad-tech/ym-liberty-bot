@@ -1,11 +1,12 @@
 {
-  "versionCode": 28,
-  "versionName": "1.1.11",
+  "versionCode": 29,
+  "versionName": "1.1.12",
   "apkUrl": "https://ym-liberty-bot.vercel.app/YMLiberty.apk",
   "releaseDate": "2026-09-24",
   "changelog": [
-    "Исправлен VerifyError при запуске приложения",
-    "Обычная загрузка треков использует FLAC, кэш — MP3 320",
-    "Добавлено логирование фактического статуса DownloadManager"
+    "Native HttpURLConnection download instead of DownloadManager",
+    "Circular download progress indicator",
+    "Downloaded track icon in the collection",
+    "Fixed active lyric line alignment"
   ]
 }

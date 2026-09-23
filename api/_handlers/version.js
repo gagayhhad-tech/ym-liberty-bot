@@ -16,8 +16,8 @@ const CANDIDATES = [
 
 // Keep this as a last-resort fallback only. It must match public/version.json.
 const FALLBACK = {
-  versionCode: 25,
-  versionName: "1.1.8",
+  versionCode: 26,
+  versionName: "1.1.9",
   apkUrl: "https://ym-liberty-bot.vercel.app/YMLiberty.apk",
   changelog: [
     "Исправлена подпись ссылок на аудиопоток для воспроизведения и скачивания",
@@ -74,3 +74,4 @@ module.exports = async (req, res) => {
     minSupportedVersion: data.minSupportedVersion || 1,
   });
 };
+

@@ -2925,14 +2925,15 @@ async function enqueueTrackDownload(track, artistName, trackId, toCache) {
   if (!(window.AndroidBridge && typeof window.AndroidBridge.downloadTrack === 'function')) return false;
 
   let streamUrl;
+  let downloadInfo;
   try {
     // User downloads are lossless FLAC; the private cache deliberately uses
     // 320 kbps MP3 to avoid consuming excessive storage.
     const downloadQuality = toCache ? 'nq' : 'lossless';
-    const data = await YandexClient.getDownloadInfo(trackId, state.token, downloadQuality);
+    downloadInfo = await YandexClient.getDownloadInfo(trackId, state.token, downloadQuality);
     // getDownloadInfo follows the PC client and returns `url`; the playback
     // resolver uses the older `streamUrl` field.
-    streamUrl = data && (data.url || data.streamUrl);
+    streamUrl = downloadInfo && (downloadInfo.url || downloadInfo.streamUrl);
     let streamHost = 'none';
     try {
       streamHost = streamUrl ? new URL(streamUrl).hostname : 'none';
@@ -2955,7 +2956,7 @@ async function enqueueTrackDownload(track, artistName, trackId, toCache) {
     return false;
   }
 
-  const { ext, mime } = data.codec && String(data.codec).includes('flac')
+  const { ext, mime } = downloadInfo.codec && String(downloadInfo.codec).includes('flac')
     ? { ext: 'flac', mime: 'audio/flac' }
     : detectAudioFormat(streamUrl);
   const title = track.title || track.track?.title || 'Трек';
@@ -2963,7 +2964,7 @@ async function enqueueTrackDownload(track, artistName, trackId, toCache) {
   const fileName = buildDownloadFileName(artist, title, ext);
 
   try {
-    const ok = Boolean(window.AndroidBridge.downloadTrack(streamUrl, fileName, mime, toCache, data.keyBase64));
+    const ok = Boolean(window.AndroidBridge.downloadTrack(streamUrl, fileName, mime, toCache, downloadInfo.keyBase64));
     ylog('DOWNLOAD', `bridge enqueue track=${trackId} ok=${ok} cache=${Boolean(toCache)} file=${fileName}`);
     return ok;
   } catch (e) {
@@ -2984,7 +2985,12 @@ async function downloadTrackToDevice(track, artistName, trackId, toCache) {
   }
 
   showToast('Получаю ссылку на аудио…', 'bi-cloud-arrow-down');
-  const ok = await enqueueTrackDownload(track, artistName, trackId, toCache);
+  let ok = false;
+  try {
+    ok = await enqueueTrackDownload(track, artistName, trackId, toCache);
+  } catch (e) {
+    ylogError('DOWNLOAD', `download preparation failed track=${trackId}: ${e?.message || e}`);
+  }
 
   if (ok) {
     showToast(

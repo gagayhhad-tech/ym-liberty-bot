@@ -1,11 +1,11 @@
 {
-  "versionCode": 33,
-  "versionName": "1.1.16",
+  "versionCode": 34,
+  "versionName": "1.1.17",
   "apkUrl": "https://ym-liberty-bot.vercel.app/YMLiberty.apk",
   "releaseDate": "2026-09-24",
   "changelog": [
-    "Исправлена передача URL get-file-info в native-загрузчик",
-    "Добавлена корректная обработка FLAC codec",
-    "Проверена схема API и AES-CTR расшифровка PC-версии"
+    "Исправлена ошибка области видимости при передаче get-file-info в native-загрузчик",
+    "Загрузка коллекции использует тот же исправленный путь",
+    "Добавлена обработка ошибок без зависания интерфейса"
   ]
 }

@@ -150,6 +150,11 @@ function bytesToBase64(bytes) {
   return btoa(binary);
 }
 
+function hexToBase64(hex) {
+  const bytes = new Uint8Array((hex || '').match(/.{1,2}/g).map((part) => parseInt(part, 16)));
+  return bytesToBase64(bytes);
+}
+
 function hmacSha256Base64(message, secret) {
   let key = utf8Bytes(secret);
   if (key.length > 64) key = sha256(key);
@@ -344,6 +349,32 @@ const YandexClient = {
       trackId: idStr,
       streamUrl: directStreamUrl,
       isLiberty: false
+    };
+  },
+
+  async getDownloadInfo(trackId, token, quality = 'lossless') {
+    const idStr = String(trackId);
+    const ts = Math.floor(Date.now() / 1000);
+    const codecs = 'flac,aac,he-aac,mp3,flac-mp4,aac-mp4,he-aac-mp4';
+    const transports = 'encraw';
+    const sign = hmacSha256Base64(
+      `${ts}${idStr}${quality}${codecs}${transports}`,
+      'kzqU4XhfCaY6B6JTHODeq5'
+    ).slice(0, -1);
+    const url = `https://api.music.yandex.net/get-file-info?ts=${ts}&trackId=${encodeURIComponent(idStr)}&quality=${encodeURIComponent(quality)}&codecs=${encodeURIComponent(codecs)}&transports=${transports}&sign=${encodeURIComponent(sign)}`;
+    const res = await fetch(url, { headers: this.getHeaders(token) });
+    const data = await res.json();
+    yandexDiag(`file-info track=${idStr} quality=${quality} http=${res.status}`);
+    if (!res.ok || !data.downloadInfo) {
+      throw new Error(data.error || `File info error ${res.status}`);
+    }
+    const info = data.downloadInfo;
+    if (!info.url || !info.key) throw new Error('File info has no URL or key');
+    return {
+      url: info.url,
+      keyBase64: hexToBase64(info.key),
+      codec: info.codec || '',
+      trackId: idStr
     };
   },
 

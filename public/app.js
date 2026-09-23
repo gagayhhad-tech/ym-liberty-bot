@@ -2928,8 +2928,8 @@ async function enqueueTrackDownload(track, artistName, trackId, toCache) {
   try {
     // User downloads are lossless FLAC; the private cache deliberately uses
     // 320 kbps MP3 to avoid consuming excessive storage.
-    const downloadQuality = toCache ? 320 : 1000;
-    const data = await fetchTrackStream(trackId, true, downloadQuality);
+    const downloadQuality = toCache ? 'nq' : 'lossless';
+    const data = await YandexClient.getDownloadInfo(trackId, state.token, downloadQuality);
     streamUrl = data && data.streamUrl;
     let streamHost = 'none';
     try {
@@ -2937,7 +2937,7 @@ async function enqueueTrackDownload(track, artistName, trackId, toCache) {
     } catch (_) {
       streamHost = 'invalid';
     }
-    ylog('DOWNLOAD', `stream resolved track=${trackId} quality=${downloadQuality} host=${streamHost}`);
+    ylog('DOWNLOAD', `file info resolved track=${trackId} quality=${downloadQuality} host=${streamHost}`);
   } catch (e) {
     ylogError('DOWNLOAD', `stream resolve failed track=${trackId}: ${e?.message || e}`);
     return false;
@@ -2959,7 +2959,7 @@ async function enqueueTrackDownload(track, artistName, trackId, toCache) {
   const fileName = buildDownloadFileName(artist, title, ext);
 
   try {
-    const ok = Boolean(window.AndroidBridge.downloadTrack(streamUrl, fileName, mime, toCache));
+    const ok = Boolean(window.AndroidBridge.downloadTrack(streamUrl, fileName, mime, toCache, data.keyBase64));
     ylog('DOWNLOAD', `bridge enqueue track=${trackId} ok=${ok} cache=${Boolean(toCache)} file=${fileName}`);
     return ok;
   } catch (e) {

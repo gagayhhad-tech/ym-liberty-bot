@@ -8,8 +8,8 @@ const CANDIDATES = [
 ];
 
 const FALLBACK = {
-  versionCode: 29,
-  versionName: "1.1.12",
+  versionCode: 30,
+  versionName: "1.1.13",
   apkUrl: "https://ym-liberty-bot.vercel.app/YMLiberty.apk",
   changelog: [
     "Native HttpURLConnection download instead of DownloadManager",
@@ -52,3 +52,4 @@ module.exports = async (req, res) => {
     minSupportedVersion: data.minSupportedVersion || 1,
   });
 };
+

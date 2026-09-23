@@ -4239,18 +4239,23 @@ async function fetchUpdateMetadata() {
     'https://ym-liberty-bot.vercel.app/api/version?_t=' + Date.now(),
     'https://ym-liberty-bot.vercel.app/version.json?_t=' + Date.now()
   ];
+  let best = null;
   for (const url of endpoints) {
     try {
       const resp = await fetch(url, { cache: 'no-store' });
       if (resp.ok) {
         const data = await resp.json();
-        if (data && data.versionCode) return data;
+        if (data && Number.isFinite(Number(data.versionCode))) {
+          if (!best || Number(data.versionCode) > Number(best.versionCode)) {
+            best = data;
+          }
+        }
       }
     } catch (e) {
       console.warn('Update endpoint check failed:', url, e);
     }
   }
-  return null;
+  return best;
 }
 
 async function checkForUpdates(isManual = false) {

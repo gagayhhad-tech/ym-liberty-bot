@@ -16,11 +16,17 @@ const CANDIDATES = [
 
 // Keep this as a last-resort fallback only. It must match public/version.json.
 const FALLBACK = {
-  versionCode: 16,
-  versionName: "1.0.15",
+  versionCode: 25,
+  versionName: "1.1.8",
   apkUrl: "https://ym-liberty-bot.vercel.app/YMLiberty.apk",
-  changelog: "",
-  releaseDate: null,
+  changelog: [
+    "Исправлена подпись ссылок на аудиопоток для воспроизведения и скачивания",
+    "Добавлены расширенные диагностические логи для текстов и загрузок",
+    "Исправлена обработка времени LRC-текстов",
+    "Текст песни теперь открывается вместо обложки в полноэкранном плеере",
+    "Синхронизированы версия APK и конфигурация Apktool",
+  ],
+  releaseDate: "2026-09-24",
   minSupportedVersion: 1,
 };
 

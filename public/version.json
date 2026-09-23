@@ -1,11 +1,11 @@
 {
-  "versionCode": 31,
-  "versionName": "1.1.14",
+  "versionCode": 32,
+  "versionName": "1.1.15",
   "apkUrl": "https://ym-liberty-bot.vercel.app/YMLiberty.apk",
   "releaseDate": "2026-09-24",
   "changelog": [
-    "Исправлен VerifyError в AndroidBridge",
-    "Скачивание использует get-file-info и AES-CTR расшифровку",
-    "Добавлены прогресс загрузки и отметка загруженных треков"
+    "Исправлена подпись get-file-info как в PC-версии",
+    "Добавлена AES-CTR расшифровка аудио",
+    "Скачивание теперь использует рабочую схему PC-клиента"
   ]
 }

@@ -16,8 +16,8 @@ const CANDIDATES = [
 
 // Keep this as a last-resort fallback only. It must match public/version.json.
 const FALLBACK = {
-  versionCode: 27,
-  versionName: "1.1.10",
+  versionCode: 28,
+  versionName: "1.1.11",
   apkUrl: "https://ym-liberty-bot.vercel.app/YMLiberty.apk",
   changelog: [
     "Обычная загрузка треков теперь запрашивает FLAC",

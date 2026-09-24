@@ -35,7 +35,7 @@ app.get('/api/search', searchHandler);
 app.get('/api/artist', artistHandler);
 app.post('/api/feedback', feedbackHandler);
 
-const apiRoutes = ['auth', 'library', 'search', 'popular', 'stream', 'proxy-audio', 'like', 'playlists', 'playlist', 'album', 'playlist-add', 'bot', 'report', 'version', 'feed', 'stats', 'cover'];
+const apiRoutes = ['auth', 'library', 'search', 'popular', 'stream', 'proxy-audio', 'like', 'playlists', 'playlist', 'album', 'playlist-add', 'bot', 'report', 'version', 'feed', 'stats'];
 
 apiRoutes.forEach(route => {
   const handler = require(path.join(__dirname, 'api', '_handlers', `${route}.js`));

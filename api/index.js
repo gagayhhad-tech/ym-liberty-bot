@@ -21,7 +21,6 @@ const handlers = {
   libertyList: require('./_handlers/libertyList'),
   feed: require('./_handlers/feed'),
   stats: require('./_handlers/stats'),
-  cover: require('./_handlers/cover'),
 };
 
 module.exports = async (req, res) => {

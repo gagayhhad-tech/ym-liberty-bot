@@ -8,15 +8,14 @@ const CANDIDATES = [
 ];
 
 const FALLBACK = {
-  versionCode: 40,
-  versionName: "1.1.23",
+  versionCode: 41,
+  versionName: "1.1.24",
   apkUrl: "https://ym-liberty-bot.vercel.app/YMLiberty.apk",
   changelog: [
-    "Fixed startup crash in the offline-download bridge",
-    "Centered the Wave hero and added a soft animated ambient glow",
-    "Added swipe navigation and mood/genre filters in Collection",
-    "Added offline downloads with MediaStore publishing on Android 10+",
-    "Pause on headphone disconnect; resume only after an automatic pause",
+    "Normalized Collection into Yandex Music-style mood categories",
+    "Fixed empty Downloads screen text encoding",
+    "Restored direct cover color sampling and separated audio analysis from EQ",
+    "Kept audio streaming on the existing audio CORS proxy",
   ],
   releaseDate: "2026-09-24",
   minSupportedVersion: 1,

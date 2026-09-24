@@ -8,10 +8,11 @@ const CANDIDATES = [
 ];
 
 const FALLBACK = {
-  versionCode: 39,
-  versionName: "1.1.22",
+  versionCode: 40,
+  versionName: "1.1.23",
   apkUrl: "https://ym-liberty-bot.vercel.app/YMLiberty.apk",
   changelog: [
+    "Fixed startup crash in the offline-download bridge",
     "Centered the Wave hero and added a soft animated ambient glow",
     "Added swipe navigation and mood/genre filters in Collection",
     "Added offline downloads with MediaStore publishing on Android 10+",

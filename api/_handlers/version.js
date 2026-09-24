@@ -8,14 +8,14 @@ const CANDIDATES = [
 ];
 
 const FALLBACK = {
-  versionCode: 38,
-  versionName: "1.1.21",
+  versionCode: 39,
+  versionName: "1.1.22",
   apkUrl: "https://ym-liberty-bot.vercel.app/YMLiberty.apk",
   changelog: [
-    "Native HttpURLConnection download instead of DownloadManager",
-    "Circular download progress indicator",
-    "Downloaded track icon in the collection",
-    "Fixed active lyric line alignment",
+    "Centered the Wave hero and added a soft animated ambient glow",
+    "Added swipe navigation and mood/genre filters in Collection",
+    "Added offline downloads with MediaStore publishing on Android 10+",
+    "Pause on headphone disconnect; resume only after an automatic pause",
   ],
   releaseDate: "2026-09-24",
   minSupportedVersion: 1,

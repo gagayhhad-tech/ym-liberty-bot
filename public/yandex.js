@@ -363,18 +363,33 @@ const YandexClient = {
       'kzqU4XhfCaY6B6JTHODeq5'
     ).slice(0, -1);
     const url = `https://api.music.yandex.net/get-file-info?ts=${ts}&trackId=${encodeURIComponent(idStr)}&quality=${encodeURIComponent(quality)}&codecs=${encodeURIComponent(codecs)}&transports=${transports}&sign=${encodeURIComponent(sign)}`;
-    const res = await fetch(url, {
-      headers: {
-        ...this.getHeaders(token),
-        // /get-file-info is the desktop download API used by the PC client.
-        // The Android client header alone is accepted by /tracks/* but gets
-        // rejected with 403 by this endpoint.
-        'X-Yandex-Music-Client': 'YandexMusicDesktopAppWindows/2.2.0',
-        'X-Yandex-Music-Frontend': 'new',
-        'X-Yandex-Music-Without-Invocation-Info': '1',
-        Accept: 'application/json'
+    let res;
+    let lastError;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20000);
+      try {
+        res = await fetch(url, {
+          signal: controller.signal,
+          headers: {
+            ...this.getHeaders(token),
+            // /get-file-info is the desktop download API used by the PC client.
+            'X-Yandex-Music-Client': 'YandexMusicDesktopAppWindows/2.2.0',
+            'X-Yandex-Music-Frontend': 'new',
+            'X-Yandex-Music-Without-Invocation-Info': '1',
+            Accept: 'application/json'
+          }
+        });
+        if (res.status !== 429 && res.status < 500) break;
+        lastError = new Error(`File info HTTP ${res.status}`);
+      } catch (error) {
+        lastError = error;
+      } finally {
+        clearTimeout(timeout);
       }
-    });
+      await new Promise((resolve) => setTimeout(resolve, 700 * (attempt + 1)));
+    }
+    if (!res) throw lastError || new Error('File info request failed');
     const data = await res.json();
     yandexDiag(`file-info track=${idStr} quality=${quality} http=${res.status}`);
     if (!res.ok || !data.downloadInfo) {

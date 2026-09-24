@@ -3009,6 +3009,17 @@ async function downloadTrackToDevice(track, artistName, trackId, toCache) {
 // bottleneck is URL resolution, which is what the pool bounds.
 let libraryDownloadRunning = false;
 
+async function enqueueTrackDownloadWithRetry(track, artistName, trackId, toCache) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const ok = await enqueueTrackDownload(track, artistName, trackId, toCache);
+    if (ok) return true;
+    if (attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
+    }
+  }
+  return false;
+}
+
 async function downloadWholeLibrary(btn) {
   if (libraryDownloadRunning) {
     showToast('Скачивание уже идёт…', 'bi-hourglass-split');
@@ -3037,7 +3048,10 @@ async function downloadWholeLibrary(btn) {
   }
   showToast(`Начинаю скачивание ${tracks.length} треков…`, 'bi-cloud-arrow-down');
 
-  const CONCURRENCY = 3;
+  // Yandex/CDN frequently resets one of several simultaneous large audio
+  // connections. Serializing the requests is slower but reliable and avoids
+  // losing half of a collection download.
+  const CONCURRENCY = 1;
   let cursor = 0;
   let ok = 0;
   let failed = 0;
@@ -3056,8 +3070,9 @@ async function downloadWholeLibrary(btn) {
       else if (raw.artists) artist = raw.artists.map(a => a && a.name).filter(Boolean).join(', ');
       if (typeof artist !== 'string') artist = '';
 
-      const enqueued = await enqueueTrackDownload(t, artist, id, false);
+      const enqueued = await enqueueTrackDownloadWithRetry(t, artist, id, false);
       if (enqueued) ok++; else failed++;
+      await new Promise((resolve) => setTimeout(resolve, 700));
     }
   };
 

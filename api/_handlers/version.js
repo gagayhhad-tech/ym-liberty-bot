@@ -8,14 +8,15 @@ const CANDIDATES = [
 ];
 
 const FALLBACK = {
-  versionCode: 41,
-  versionName: "1.1.24",
+  versionCode: 42,
+  versionName: "1.1.25",
   apkUrl: "https://ym-liberty-bot.vercel.app/YMLiberty.apk",
   changelog: [
     "Normalized Collection into Yandex Music-style mood categories",
     "Fixed empty Downloads screen text encoding",
     "Restored direct cover color sampling and separated audio analysis from EQ",
     "Kept audio streaming on the existing audio CORS proxy",
+    "Wave effect now follows the cover directly without a cover proxy",
   ],
   releaseDate: "2026-09-24",
   minSupportedVersion: 1,

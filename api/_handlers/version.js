@@ -8,17 +8,13 @@ const CANDIDATES = [
 ];
 
 const FALLBACK = {
-  versionCode: 42,
-  versionName: "1.1.25",
+  versionCode: 49,
+  versionName: "1.1.32",
   apkUrl: "https://ym-liberty-bot.vercel.app/YMLiberty.apk",
   changelog: [
-    "Normalized Collection into Yandex Music-style mood categories",
-    "Fixed empty Downloads screen text encoding",
-    "Restored direct cover color sampling and separated audio analysis from EQ",
-    "Kept audio streaming on the existing audio CORS proxy",
-    "Wave effect now follows the cover directly without a cover proxy",
+    "Аура Моей Волны теперь использует только цвета текущей обложки без отрисовки самой обложки.",
   ],
-  releaseDate: "2026-09-24",
+  releaseDate: "2026-09-25",
   minSupportedVersion: 1,
 };
 

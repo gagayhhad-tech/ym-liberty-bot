@@ -8,12 +8,10 @@ const CANDIDATES = [
 ];
 
 const FALLBACK = {
-  versionCode: 50,
-  versionName: "1.1.33",
+  versionCode: 51,
+  versionName: "1.1.34",
   apkUrl: "https://ym-liberty-bot.vercel.app/YMLiberty.apk",
-  changelog: [
-    "Улучшена визуальная система: исправлены кнопки настроения, положение уведомлений и видимость ауры; нажатие на заголовок Моей Волны запускает воспроизведение.",
-  ],
+  changelog: ["Расширена классификация треков в коллекции: учитываются жанры и настроения из метаданных трека и всех альбомов; добавлены счётчики категорий."],
   releaseDate: "2026-09-25",
   minSupportedVersion: 1,
 };
@@ -49,12 +47,3 @@ module.exports = async (req, res) => {
     minSupportedVersion: data.minSupportedVersion || 1,
   });
 };
-
-
-
-
-
-
-
-
-

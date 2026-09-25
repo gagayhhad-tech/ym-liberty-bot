@@ -12,6 +12,34 @@ window.alert = function(msg) {
 // Always reference the bundled asset relatively.
 const PLACEHOLDER_COVER = 'favicon.png';
 
+// A compact personal hub keeps the main Wave action prominent while exposing
+// the most-used collection destinations without changing the three-tab nav.
+(() => {
+  const stats = document.querySelector('.vibe-stats-panel');
+  const animation = document.querySelector('.vibe-animation');
+  const title = document.querySelector('.vibe-title');
+  const subtitle = document.querySelector('.vibe-subtitle');
+  if (animation && title && subtitle && !animation.closest('.vibe-hero')) {
+    const hero = document.createElement('section');
+    hero.className = 'vibe-hero';
+    animation.parentNode.insertBefore(hero, animation);
+    hero.append(animation, title, subtitle);
+  }
+  if (!stats || document.getElementById('home-hub')) return;
+  const hub = document.createElement('section');
+  hub.id = 'home-hub';
+  hub.className = 'home-hub';
+  hub.innerHTML = `
+    <h2>Ваша музыка</h2>
+    <div class="home-hub-grid">
+      <button class="home-hub-card home-hub-continue" id="hub-continue"><i class="bi bi-play-circle-fill"></i><span>Продолжить</span></button>
+      <button class="home-hub-card" id="hub-likes"><i class="bi bi-heart-fill"></i><span>Мне нравится</span></button>
+      <button class="home-hub-card" id="hub-downloads"><i class="bi bi-download"></i><span>Загрузки</span></button>
+      <button class="home-hub-card" id="hub-releases"><i class="bi bi-stars"></i><span>Новинки</span></button>
+    </div>`;
+  stats.parentNode.insertBefore(hub, stats);
+})();
+
 // --- DOM Elements ---
 const dom = {
   navBtns: document.querySelectorAll('.nav-btn'),
@@ -78,17 +106,33 @@ const ensureAudioContextResumed = () => {
     eqAudioCtx.resume().catch(() => {});
   }
 };
-playerA.addEventListener('play', ensureAudioContextResumed);
-playerB.addEventListener('play', ensureAudioContextResumed);
+playerA.addEventListener('play', () => {
+  ensureAudioContextResumed();
+  ensureVibeAudioAnalysis();
+});
+playerB.addEventListener('play', () => {
+  ensureAudioContextResumed();
+  ensureVibeAudioAnalysis();
+});
 
 let activePlayer = playerA;
 let preloadPlayer = playerB;
+let autoPausedTrackId = null;
+function clearNoisyAutoResume() {
+  autoPausedTrackId = null;
+  try {
+    if (window.AndroidBridge && typeof window.AndroidBridge.clearNoisyAutoResume === 'function') {
+      window.AndroidBridge.clearNoisyAutoResume();
+    }
+  } catch (_) {}
+}
 
 // --- State ---
 const state = {
   token: localStorage.getItem('ym_token') || '',
   user: null,
   tracks: [], // Library tracks
+  collectionTagFilter: null,
   queue: [], // Current play queue
   queueIndex: 0,
   queueMode: 'library', // 'library', 'vibe', 'playlist', 'album', 'artist'
@@ -129,6 +173,8 @@ function updatePlaybackContextHeader(subtitle, title) {
       state.playbackContext = { subtitle: 'ИГРАЕТ ИЗ АЛЬБОМА', title: 'Альбом' };
     } else if (state.queueMode === 'artist') {
       state.playbackContext = { subtitle: 'ТРЕКИ АРТИСТА', title: state.currentTrack?.artist || 'Артист' };
+    } else if (state.queueMode === 'downloads') {
+      state.playbackContext = { subtitle: 'ОФЛАЙН-ПРОСЛУШИВАНИЕ', title: 'Загрузки' };
     } else {
       state.playbackContext = { subtitle: 'ИГРАЕТ ИЗ КОЛЛЕКЦИИ', title: 'Любимые треки' };
     }
@@ -157,6 +203,7 @@ function navigateToView(targetId) {
     else v.classList.remove('active');
   });
   window.scrollTo(0, 0);
+  syncDynamicBackground();
   if (typeof startAuraLoop === 'function') startAuraLoop();
 }
 
@@ -171,7 +218,18 @@ function navigateBack() {
   } else {
     document.querySelector('.nav-btn.active')?.click();
   }
+  syncDynamicBackground();
   if (typeof startAuraLoop === 'function') startAuraLoop();
+}
+
+function syncDynamicBackground() {
+  if (!dom.dynamicBg) return;
+  const vibeIsActive = document.getElementById('view-vibe')?.classList.contains('active');
+  if (dom.toggleDynamicBg?.checked && state.currentTrack && !vibeIsActive) {
+    dom.dynamicBg.style.backgroundImage = `url(${state.currentTrack.cover})`;
+  } else {
+    dom.dynamicBg.style.backgroundImage = 'none';
+  }
 }
 
 dom.navBtns.forEach(btn => {
@@ -188,9 +246,68 @@ dom.navBtns.forEach(btn => {
         view.classList.remove('active');
       }
     });
+    syncDynamicBackground();
     if (typeof startAuraLoop === 'function') startAuraLoop();
   });
 });
+
+document.getElementById('hub-continue')?.addEventListener('click', () => {
+  if (state.currentTrack && !state.isPlaying) handlePlayToggle();
+  else if (state.isPlaying) return;
+  else dom.vibePlayBtn?.click();
+});
+document.getElementById('hub-likes')?.addEventListener('click', () => {
+  document.querySelector('.nav-btn[data-target="view-library"]')?.click();
+  document.getElementById('seg-tracks')?.click();
+});
+document.getElementById('hub-downloads')?.addEventListener('click', () => {
+  document.querySelector('.nav-btn[data-target="view-library"]')?.click();
+  document.getElementById('seg-downloads')?.click();
+});
+document.getElementById('hub-releases')?.addEventListener('click', () => {
+  document.getElementById('vibe-releases-track-list')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
+
+// Edge swipes move only between the primary tabs. Ignore controls, nested
+// scrollers, dialogs, and the full-screen player; vertical gestures always win.
+(() => {
+  const order = ['view-vibe', 'view-library', 'view-settings'];
+  let startX = 0, startY = 0, startTarget = null;
+  const excludedSwipeRegion = [
+    'button', 'a', 'input', 'textarea', 'select', 'label',
+    '[role="button"]', '[role="dialog"]', '[contenteditable="true"]',
+    '.modal', '.modal-overlay', '.bottom-nav', '.mini-player', '.full-player',
+    '.vibe-mood-chips', '.collection-tag-filters', '.collection-tag-row',
+    '.releases-carousel', '.tracks-list', '.full-lyrics-lines',
+    '[data-horizontal-scroll]', '[data-no-tab-swipe]'
+  ].join(',');
+
+  document.addEventListener('touchstart', (event) => {
+    const touch = event.changedTouches[0];
+    startX = touch.clientX;
+    startY = touch.clientY;
+    startTarget = event.target instanceof Element && !event.target.closest(excludedSwipeRegion)
+      ? event.target
+      : null;
+  }, { passive: true });
+  document.addEventListener('touchend', (event) => {
+    const fullPlayer = document.getElementById('full-player');
+    if (!startTarget || (fullPlayer && !fullPlayer.classList.contains('translateY-100'))) return;
+    const activeView = document.querySelector('.view.active');
+    if (!order.includes(activeView?.id) || !activeView.contains(startTarget)) return;
+    if (document.querySelector('.modal-overlay:not(.hidden), .modal:not(.hidden), [role="dialog"]:not([hidden])')) return;
+    const touch = event.changedTouches[0];
+    const dx = touch.clientX - startX, dy = touch.clientY - startY;
+    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.35) return;
+    const current = document.querySelector('.nav-btn.active')?.dataset.target;
+    const index = order.indexOf(current);
+    const next = order[index + (dx < 0 ? 1 : -1)];
+    const button = [...dom.navBtns].find(item => item.dataset.target === next);
+    if (button) button.click();
+    startTarget = null;
+  }, { passive: true });
+  document.addEventListener('touchcancel', () => { startTarget = null; }, { passive: true });
+})();
 
 // --- Auth Logic ---
 let authPollTimer = null;
@@ -497,9 +614,94 @@ async function fetchLibrary(token) {
   }
 }
 
+const COLLECTION_CATEGORY_ORDER = ['all', 'calm', 'road', 'energy', 'party', 'focus', 'sad'];
+const COLLECTION_CATEGORY_LABELS = {
+  all: '\u0412\u0441\u0451', calm: '\u0421\u043f\u043e\u043a\u043e\u0439\u043d\u043e\u0435', road: '\u0412 \u0434\u043e\u0440\u043e\u0433\u0443', energy: '\u0411\u043e\u0434\u0440\u043e\u0435',
+  party: '\u0412\u0435\u0447\u0435\u0440\u0438\u043d\u043a\u0430', focus: '\u0424\u043e\u043a\u0443\u0441', sad: '\u0413\u0440\u0443\u0441\u0442\u044c'
+};
+const COLLECTION_CATEGORY_RULES = {
+  calm: ['calm','chill','chillout','ambient','classical','neo-classical','new age','lounge','acoustic','relax','sleep','meditation','downtempo','\u043a\u043b\u0430\u0441\u0441\u0438\u043a\u0430','\u0434\u0436\u0430\u0437','jazz','\u0430\u043a\u0443\u0441\u0442','\u0440\u0435\u043b\u0430\u043a\u0441','\u0441\u043f\u043e\u043a\u043e\u0439','\u0442\u0438\u0448\u0438\u043d','\u043c\u044f\u0433\u043a','\u0441\u043e\u043d','\u043c\u0435\u0434\u0438\u0442\u0430\u0446'],
+  road: ['road','driving','travel','car music','rock','pop','indie','alternative','\u0432 \u0434\u043e\u0440\u043e\u0433\u0443','\u043f\u0443\u0442\u0435\u0448\u0435\u0441\u0442\u0432','\u0440\u043e\u043a','\u043f\u043e\u043f','\u0438\u043d\u0434\u0438','\u0430\u043b\u044c\u0442\u0435\u0440','\u0434\u043e\u0440\u043e\u0433'],
+  energy: ['energy','energetic','upbeat','dance','dancing','electronic','edm','house','techno','drum and bass','dnb','metal','punk','hardstyle','workout','running','gym','\u0442\u0430\u043d\u0446\u0435\u0432','\u044d\u043b\u0435\u043a\u0442\u0440\u043e','\u043c\u0435\u0442\u0430\u043b','\u0431\u043e\u0434\u0440','\u044d\u043d\u0435\u0440\u0433','\u0442\u0440\u0435\u043d\u0438\u0440','\u0431\u0435\u0433'],
+  party: ['party','dance party','celebration','celebrate','fun','disco','pop hits','rap','hip-hop','hip hop','trap','rnb','r&b','funk','reggaeton','\u0432\u0435\u0447\u0435\u0440\u0438\u043d','\u043f\u0440\u0430\u0437\u0434\u043d','\u0432\u0435\u0441\u0435\u043b','\u0434\u0438\u0441\u043a\u043e','\u0440\u044d\u043f','\u0445\u0438\u043f-\u0445\u043e\u043f','\u0442\u0440\u044d\u043f','\u0444\u0430\u043d\u043a'],
+  focus: ['focus','concentration','concentrate','study','studying','work','working','productivity','instrumental','instrumentals','lofi','lo-fi','soundtrack','score','minimalism','\u0444\u043e\u043a\u0443\u0441','\u043a\u043e\u043d\u0446\u0435\u043d\u0442\u0440','\u0443\u0447\u0451\u0431','\u0443\u0447\u0435\u0431','\u0440\u0430\u0431\u043e\u0442','\u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442','\u0441\u0430\u0443\u043d\u0434\u0442\u0440\u0435\u043a','\u043a\u0438\u043d\u043e\u043c\u0443\u0437\u044b\u043a'],
+  sad: ['sad','sadness','melancholy','melancholic','heartbreak','breakup','lonely','loss','blues','emo','soul','slow','\u0433\u0440\u0443\u0441\u0442','\u043f\u0435\u0447\u0430\u043b','\u043c\u0435\u043b\u0430\u043d\u0445\u043e\u043b','\u0442\u043e\u0441\u043a','\u043e\u0434\u0438\u043d\u043e\u0447','\u0431\u043b\u044e\u0437','\u044d\u043c\u043e','\u0441\u043e\u0443\u043b']
+};
+
+function getCollectionLabels(entry) {
+  const track = entry?.track || entry || {};
+  const labels = (value) => (Array.isArray(value) ? value : (value ? [value] : []))
+    .flatMap(item => {
+      if (typeof item === 'string') return [item];
+      if (item && typeof item === 'object') return [item.name, item.title, item.value].filter(Boolean);
+      return [];
+    })
+    .filter(Boolean).map(String);
+  const albums = [...(Array.isArray(track.albums) ? track.albums : []),
+    ...(Array.isArray(entry?.albums) ? entry.albums : [])];
+  const moodRaw = [
+    ...labels(track.moods), ...labels(track.moodTags), ...labels(track.mood),
+    ...albums.flatMap(album => [...labels(album?.moods), ...labels(album?.moodTags), ...labels(album?.mood)])
+  ];
+  const genreRaw = [
+    ...labels(track.genres), ...labels(track.genre),
+    ...albums.flatMap(album => [...labels(album?.genres), ...labels(album?.genre)])
+  ];
+  const matchCategories = (values) => {
+    const haystack = values.join(' ').toLocaleLowerCase().replace(/ё/g, 'е').replace(/[_-]+/g, ' ');
+    return COLLECTION_CATEGORY_ORDER.filter(category =>
+      category !== 'all' && COLLECTION_CATEGORY_RULES[category].some(term =>
+        haystack.includes(term.toLocaleLowerCase().replace(/ё/g, 'е').replace(/[_-]+/g, ' '))
+      )
+    );
+  };
+  const moodCategories = matchCategories(moodRaw);
+  const genreCategories = matchCategories(genreRaw);
+  const categories = COLLECTION_CATEGORY_ORDER.filter(category =>
+    moodCategories.includes(category) || genreCategories.includes(category)
+  );
+  return { type: moodCategories.length ? 'mood' : 'genre', labels: categories.length ? categories : ['all'] };
+}
+
+function renderCollectionTags() {
+  const list = document.getElementById('tracks-list');
+  if (!list) return;
+  let bar = document.getElementById('collection-tag-filters');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'collection-tag-filters';
+    bar.className = 'collection-tag-filters';
+    list.parentNode.insertBefore(bar, list);
+  }
+  const available = new Set(['all']);
+  const categoryCounts = Object.fromEntries(COLLECTION_CATEGORY_ORDER.map(category => [category, 0]));
+  state.tracks.forEach(track => {
+    getCollectionLabels(track).labels.forEach(label => {
+      available.add(label);
+      if (label !== 'all') categoryCounts[label]++;
+    });
+  });
+  if (state.collectionTagFilter && !available.has(state.collectionTagFilter)) state.collectionTagFilter = null;
+  bar.hidden = false;
+  bar.innerHTML = '<div class="collection-tag-row">' + COLLECTION_CATEGORY_ORDER
+    .filter(category => available.has(category))
+    .map(category => '<button type="button" class="collection-tag-chip ' +
+      ((state.collectionTagFilter === category || (!state.collectionTagFilter && category === 'all')) ? 'active' : '') +
+      '" data-tag="' + category + '">' + COLLECTION_CATEGORY_LABELS[category] +
+      (category === 'all' ? ` (${state.tracks.length})` : ` (${categoryCounts[category]})`) + '</button>')
+    .join('') + '</div>';
+  bar.querySelectorAll('.collection-tag-chip').forEach(button => {
+    button.addEventListener('click', () => {
+      state.collectionTagFilter = button.dataset.tag === 'all' ? null : button.dataset.tag;
+      renderTracks();
+    });
+  });
+}
+
 function renderTracks() {
   dom.likesCount.textContent = `${state.tracks.length} треков`;
   dom.tracksList.innerHTML = '';
+  renderCollectionTags();
   
   const playAllBtn = document.querySelector('.play-all-btn');
   if (playAllBtn) {
@@ -522,16 +724,19 @@ function renderTracks() {
     downloadAllBtn.onclick = () => downloadWholeLibrary(downloadAllBtn);
   }
   
-  if (state.tracks.length === 0) {
+  const visibleTracks = state.collectionTagFilter
+    ? state.tracks.filter(track => getCollectionLabels(track).labels.includes(state.collectionTagFilter))
+    : state.tracks;
+  if (visibleTracks.length === 0) {
     dom.tracksList.innerHTML = `
       <div class="empty-state">
         <i class="bi bi-music-note-beamed"></i>
-        <p>Нет загруженных треков</p>
+        <p>${state.tracks.length ? 'В этой категории пока нет треков' : 'Нет любимых треков'}</p>
       </div>`;
     return;
   }
   
-  state.tracks.forEach(track => {
+  visibleTracks.forEach(track => {
     if (!track) return;
     
     const div = document.createElement('div');
@@ -545,7 +750,7 @@ function renderTracks() {
     }
     const isExplicit = track.explicit || track.contentWarning === 'explicit';
     const badgeHtml = track.isLiberty ? `<span class="liberty-badge"><i class="bi bi-gem"></i></span>` : (isExplicit ? `<span class="explicit-badge">E</span>` : '');
-    const downloadedHtml = isTrackDownloaded(artist, track.title)
+    const downloadedHtml = isTrackDownloaded(track.id, artist, track.title)
       ? '<span class="track-download-state" title="Загружено"><i class="bi bi-check-circle-fill"></i></span>'
       : '';
     div._trackData = track;
@@ -645,6 +850,7 @@ function getNextTrack() {
 
 async function preloadNextTrack() {
   try {
+    if (state.queueMode === 'downloads') return;
     if (!state.token) return;
     if (state.queueMode === 'vibe' && state.queueIndex + 2 >= state.queue.length) {
       fetchMoreVibeTracks().catch(() => {});
@@ -998,6 +1204,7 @@ function playQueueTrack(track) {
 }
 
 async function playTrack(id, title, artist, cover, explicit, isLiberty, artistId, rawTrack) {
+  clearNoisyAutoResume();
   resetCrossfadeState();
   const idStr = String(id);
   const trackInfo = { id: idStr, title, artist, cover, explicit, isLiberty, artistId, track: rawTrack };
@@ -1006,6 +1213,25 @@ async function playTrack(id, title, artist, cover, explicit, isLiberty, artistId
   // Set Loading State
   state.isPlaying = false;
   updatePlayButtons();
+
+  if (rawTrack?.offlineUrl) {
+    preloadPlayer.pause();
+    preloadPlayer.removeAttribute('src');
+    preloadedTrack = null;
+    preloadPromise = null;
+    activePlayer.pause();
+    activePlayer.src = rawTrack.offlineUrl;
+    try {
+      await activePlayer.play();
+      state.isPlaying = true;
+      updatePlayButtons();
+      return;
+    } catch (e) {
+      console.error('Offline playback failed:', e);
+      showToast('Не удалось открыть загруженный файл', 'bi-exclamation-triangle');
+      return;
+    }
+  }
   
   // Check if this track was preloaded and ready in preloadPlayer
   if (preloadedTrack && String(preloadedTrack.id) === idStr) {
@@ -1069,9 +1295,11 @@ function setupMediaSession() {
   if (!('mediaSession' in navigator)) return;
   try {
     navigator.mediaSession.setActionHandler('play', () => {
+      clearNoisyAutoResume();
       activePlayer.play();
     });
     navigator.mediaSession.setActionHandler('pause', () => {
+      clearNoisyAutoResume();
       activePlayer.pause();
     });
     navigator.mediaSession.setActionHandler('previoustrack', () => {
@@ -1135,10 +1363,13 @@ function syncNativeMedia(title, artist, isPlaying, positionMs, durationMs, cover
 window.handleMediaAction = function(action) {
   console.log("Native media action:", action);
   if (action === 'play_pause') {
+    clearNoisyAutoResume();
     handlePlayToggle();
   } else if (action === 'play') {
+    clearNoisyAutoResume();
     if (!state.isPlaying) handlePlayToggle();
   } else if (action === 'pause') {
+    clearNoisyAutoResume();
     try {
       activePlayer.pause();
       playerA.pause();
@@ -1146,9 +1377,35 @@ window.handleMediaAction = function(action) {
     } catch(e) {}
     state.isPlaying = false;
     updatePlayButtons();
+  } else if (action === 'noisy') {
+    autoPausedTrackId = state.isPlaying && state.currentTrack ? String(state.currentTrack.id) : null;
+    if (!autoPausedTrackId) return;
+    const position = Number(activePlayer.currentTime);
+    if (Number.isFinite(position)) {
+      try { savePlaybackState(true); } catch (_) {}
+    }
+    activePlayer.pause();
+    playerA.pause();
+    playerB.pause();
+    state.isPlaying = false;
+    updatePlayButtons();
+  } else if (action === 'output_connected') {
+    const resumeId = autoPausedTrackId;
+    clearNoisyAutoResume();
+    if (!resumeId || !state.currentTrack || String(state.currentTrack.id) !== resumeId) return;
+    activePlayer.play().then(() => {
+      if (!state.currentTrack || String(state.currentTrack.id) !== resumeId) {
+        activePlayer.pause();
+        return;
+      }
+      state.isPlaying = true;
+      updatePlayButtons();
+    }).catch((error) => console.warn('Headphone reconnect resume blocked:', error));
   } else if (action === 'next') {
+    clearNoisyAutoResume();
     playNext();
   } else if (action === 'prev') {
+    clearNoisyAutoResume();
     playPrev();
   }
 };
@@ -1444,9 +1701,7 @@ function updateTrackUI(trackInfo) {
   if (dom.timeCurrent) dom.timeCurrent.textContent = "0:00";
   if (dom.timeTotal) dom.timeTotal.textContent = "0:00";
   
-  if (dom.toggleDynamicBg.checked) {
-    dom.dynamicBg.style.backgroundImage = `url(${trackInfo.cover})`;
-  }
+  syncDynamicBackground();
   
   // The legacy .blob layers are permanently hidden (app.css: display:none
   // !important) — the canvas aura replaced them. Setting backgroundImage on two
@@ -2006,6 +2261,7 @@ async function startTrackVibe(seedTrack) {
 function handlePlayToggle(e) {
   if (e && e.stopPropagation) e.stopPropagation();
   if (!state.currentTrack) return;
+  clearNoisyAutoResume();
   if (state.isPlaying) {
     activePlayer.pause();
   } else {
@@ -2016,6 +2272,19 @@ function handlePlayToggle(e) {
 dom.miniBtnPlay.addEventListener('click', handlePlayToggle);
 dom.fullBtnPlay.addEventListener('click', handlePlayToggle);
 dom.vibePlayBtn.addEventListener('click', startVibe);
+const vibeTitleAction = document.querySelector('.vibe-title');
+if (vibeTitleAction) {
+  vibeTitleAction.setAttribute('role', 'button');
+  vibeTitleAction.setAttribute('tabindex', '0');
+  vibeTitleAction.setAttribute('aria-label', 'Запустить Мою Волну');
+  vibeTitleAction.addEventListener('click', () => dom.vibePlayBtn.click());
+  vibeTitleAction.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      dom.vibePlayBtn.click();
+    }
+  });
+}
 
 if (dom.miniBtnNext) dom.miniBtnNext.addEventListener('click', (e) => { e.stopPropagation(); playNext(); });
 
@@ -2716,12 +2985,8 @@ if (dom.fullArtist) {
 }
 
 // Dynamic BG Toggle
-dom.toggleDynamicBg.addEventListener('change', (e) => {
-  if (e.target.checked && state.currentTrack) {
-    dom.dynamicBg.style.backgroundImage = `url(${state.currentTrack.cover})`;
-  } else {
-    dom.dynamicBg.style.backgroundImage = 'none';
-  }
+dom.toggleDynamicBg.addEventListener('change', () => {
+  syncDynamicBackground();
 });
 
 // Color Picker Logic
@@ -2765,37 +3030,141 @@ if (state.token) {
   setTimeout(() => dom.authModal.classList.remove('hidden'), 500);
 }
 
-// Segmented Control (Tracks / Playlists)
+// Collection sub-navigation: liked tracks, playlists, and successful downloads.
 const segTracks = document.getElementById('seg-tracks');
 const segPlaylists = document.getElementById('seg-playlists');
 const viewLibraryTracks = document.getElementById('library-tracks-view');
 const viewLibraryPlaylists = document.getElementById('library-playlists-view');
+const librarySegments = segTracks?.parentElement;
+const libraryContent = viewLibraryTracks?.parentElement;
+let segDownloads = document.getElementById('seg-downloads');
+let viewLibraryDownloads = document.getElementById('library-downloads-view');
+
+if (librarySegments && !segDownloads) {
+  segDownloads = document.createElement('button');
+  segDownloads.type = 'button';
+  segDownloads.id = 'seg-downloads';
+  segDownloads.className = 'segment';
+  segDownloads.style.cssText = 'flex:1;border:none;background:transparent;color:#aaa;padding:8px;border-radius:6px;font-weight:600;';
+  segDownloads.textContent = 'Загрузки';
+  librarySegments.appendChild(segDownloads);
+}
+if (libraryContent && !viewLibraryDownloads) {
+  viewLibraryDownloads = document.createElement('div');
+  viewLibraryDownloads.id = 'library-downloads-view';
+  viewLibraryDownloads.style.display = 'none';
+  viewLibraryDownloads.innerHTML = '<div id="downloaded-tracks-list" class="tracks-list" style="padding-top:15px;"></div>';
+  libraryContent.appendChild(viewLibraryDownloads);
+}
+
+function selectLibrarySegment(selected) {
+  const controls = [
+    [segTracks, 'tracks'],
+    [segPlaylists, 'playlists'],
+    [segDownloads, 'downloads']
+  ];
+  controls.forEach(([button, key]) => {
+    if (!button) return;
+    const active = key === selected;
+    button.classList.toggle('active', active);
+    button.style.background = active ? 'rgba(255,255,255,0.2)' : 'transparent';
+    button.style.color = active ? '#fff' : '#aaa';
+  });
+  if (viewLibraryTracks) viewLibraryTracks.style.display = selected === 'tracks' ? 'block' : 'none';
+  if (viewLibraryPlaylists) viewLibraryPlaylists.style.display = selected === 'playlists' ? 'block' : 'none';
+  if (viewLibraryDownloads) viewLibraryDownloads.style.display = selected === 'downloads' ? 'block' : 'none';
+  if (selected === 'playlists' && !state.playlistsLoaded) fetchPlaylists();
+  if (selected === 'downloads') renderDownloadedTracks();
+}
 
 if (segTracks && segPlaylists) {
-  segTracks.addEventListener('click', () => {
-    segTracks.classList.add('active');
-    segTracks.style.background = 'rgba(255,255,255,0.2)';
-    segTracks.style.color = '#fff';
-    segPlaylists.classList.remove('active');
-    segPlaylists.style.background = 'transparent';
-    segPlaylists.style.color = '#aaa';
-    viewLibraryTracks.style.display = 'block';
-    viewLibraryPlaylists.style.display = 'none';
-  });
+  segTracks.addEventListener('click', () => selectLibrarySegment('tracks'));
+  segPlaylists.addEventListener('click', () => selectLibrarySegment('playlists'));
+  segDownloads?.addEventListener('click', () => selectLibrarySegment('downloads'));
+}
 
-  segPlaylists.addEventListener('click', () => {
-    segPlaylists.classList.add('active');
-    segPlaylists.style.background = 'rgba(255,255,255,0.2)';
-    segPlaylists.style.color = '#fff';
-    segTracks.classList.remove('active');
-    segTracks.style.background = 'transparent';
-    segTracks.style.color = '#aaa';
-    viewLibraryTracks.style.display = 'none';
-    viewLibraryPlaylists.style.display = 'block';
-    if (!state.playlistsLoaded) {
-      fetchPlaylists();
-    }
+function renderDownloadedTracks() {
+  const list = document.getElementById('downloaded-tracks-list');
+  if (!list) return;
+  const tracks = getDownloadedTrackRegistry().filter(track => track && track.id && track.fileName);
+  if (!tracks.length) {
+    list.innerHTML = '<div class="empty-state"><i class="bi bi-download"></i><p>\u0417\u0434\u0435\u0441\u044c \u043f\u043e\u044f\u0432\u044f\u0442\u0441\u044f \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043d\u043d\u044b\u0435 \u0442\u0440\u0435\u043a\u0438</p></div>';
+    return;
+  }
+  list.innerHTML = tracks.map(track =>
+    '<div class="track-item downloaded-track-item" data-track-id="' + escapeHtml(track.id) + '" data-file-name="' + escapeHtml(track.fileName) + '">' +
+      '<img src="' + escapeHtml(track.coverUri || PLACEHOLDER_COVER) + '" alt="" loading="lazy" onerror="this.src=\'favicon.png\'">' +
+      '<div class="track-info"><div class="track-title">' + escapeHtml(track.title || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u044b\u0439 \u0442\u0440\u0435\u043a') + '</div>' +
+      '<div class="track-artist">' + escapeHtml(track.artist || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u044b\u0439 \u0430\u0440\u0442\u0438\u0441\u0442') +
+      (track.toCache ? ' (\u043a\u044d\u0448)' : '') + '</div></div>' +
+      '<button type="button" class="downloaded-track-action" data-action="play" aria-label="\u0412\u043e\u0441\u043f\u0440\u043e\u0438\u0437\u0432\u0435\u0441\u0442\u0438"><i class="bi bi-play-circle-fill"></i></button>' +
+      '<button type="button" class="downloaded-track-action" data-action="delete" aria-label="\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u043a\u0443"><i class="bi bi-trash3"></i></button>' +
+    '</div>'
+  ).join('');
+  list.querySelectorAll('.downloaded-track-item').forEach(row => {
+    const trackId = row.dataset.trackId;
+    const fileName = row.dataset.fileName;
+    row.querySelector('[data-action="play"]')?.addEventListener('click', () => playDownloadedTrack(trackId, fileName));
+    row.querySelector('[data-action="delete"]')?.addEventListener('click', () => deleteDownloadedTrack(trackId, fileName));
   });
+}
+
+function playDownloadedTrack(trackId, fileName) {
+  const bridge = window.AndroidBridge;
+  if (!bridge || typeof bridge.getDownloadedTrackUrl !== 'function') {
+    showToast('\u041e\0444\043b\0430\0439\043d-\0432\043e\0441\043f\0440\043e\0438\0437\0432\0435\0434\0435\043d\0438\0435 \0434\043e\0441\0442\0443\043f\043d\043e \0432 \043f\0440\0438\043b\043e\0436\0435\u043d\u0438\u0438', 'bi-exclamation-circle');
+    return;
+  }
+  state.queue = getDownloadedTrackRegistry().map(track => {
+    let offlineUrl = '';
+    try { offlineUrl = bridge.getDownloadedTrackUrl(track.fileName) || ''; } catch (_) {}
+    return {
+      id: String(track.id), title: track.title, artists: track.artist || '', offlineUrl,
+      offlineFileName: track.fileName, coverUri: track.coverUri || PLACEHOLDER_COVER,
+      explicit: false, isLiberty: false
+    };
+  }).filter(track => track.offlineUrl);
+  state.queueMode = 'downloads';
+  state.queueIndex = state.queue.findIndex(track =>
+    String(track.id) === String(trackId) && track.offlineFileName === fileName
+  );
+  if (state.queueIndex < 0) {
+    showToast('\u0417\0430\0433\0440\0443\0436\0435\043d\043d\044b\0439 \0444\0430\0439\043b \043d\0435 \043d\0430\0439\0434\0435\043d \043d\0430 \0443\0441\0442\0440\043e\0439\u0441\0442\0432\0435', 'bi-exclamation-triangle');
+    return;
+  }
+  updatePlaybackContextHeader('\u041e\0424\041b\0410\0419\041d-\041f\0420\041e\0421\041b\0423\0428\0418\0412\0410\041d\0418\0415', '\u0417\0430\0433\0440\0443\0437\043a\0438');
+  playQueueTrack(state.queue[state.queueIndex]);
+}
+
+function deleteDownloadedTrack(trackId, fileName) {
+  const record = getDownloadedTrackRegistry().find(track =>
+    String(track.id) === String(trackId) && track.fileName === fileName
+  );
+  if (!record) return;
+  const bridge = window.AndroidBridge;
+  if (!bridge || typeof bridge.deleteDownloadedTrack !== 'function') {
+    showToast('\u0423\0434\0430\043b\0435\043d\0438\0435 \0437\0430\0433\0440\0443\0437\043e\043a \0434\043e\0441\0442\0443\043f\043d\043e \0432 \043f\0440\0438\043b\043e\0436\0435\u043d\0438\u0438', 'bi-exclamation-circle');
+    return;
+  }
+  let deleted = false;
+  try { deleted = Boolean(bridge.deleteDownloadedTrack(record.fileName)); } catch (_) {}
+  if (!deleted) {
+    showToast('\u041d\0435 \0443\0434\0430\043b\043e\0441\044c \0443\0434\0430\043b\0438\0442\044c \0444\0430\0439\043b \0437\0430\0433\0440\0443\0437\043a\0438', 'bi-exclamation-triangle');
+    return;
+  }
+  const remaining = getDownloadedTrackRegistry().filter(track =>
+    !(String(track.id) === String(trackId) && track.fileName === record.fileName)
+  );
+  localStorage.setItem(DOWNLOADED_TRACKS_KEY, JSON.stringify(remaining));
+  if (!remaining.some(track => String(track.id) === String(trackId))) {
+    localStorage.removeItem('ym_downloaded_track:' + String(trackId));
+  }
+  localStorage.removeItem(downloadStorageKey(record.fileName));
+  renderDownloadedTracks();
+  if (state.currentTrack && String(state.currentTrack.id) === String(trackId) &&
+      state.currentTrack.track?.offlineFileName === record.fileName) {
+    activePlayer.pause(); state.isPlaying = false; updatePlayButtons();
+  }
 }
 
 async function fetchPlaylists() {
@@ -2863,10 +3232,35 @@ function downloadStorageKey(fileName) {
   return `ym_downloaded:${fileName}`;
 }
 
-function isTrackDownloaded(artist, title) {
-  return localStorage.getItem(
+function downloadVariantKey(trackId, toCache) {
+  return `${String(trackId)}:${toCache ? 'cache' : 'library'}`;
+}
+
+const DOWNLOADED_TRACKS_KEY = 'ym_downloaded_tracks_v1';
+const pendingDownloadMetadata = new Map();
+const activeDownloadIds = new Set();
+
+function getDownloadedTrackRegistry() {
+  try {
+    const value = JSON.parse(localStorage.getItem(DOWNLOADED_TRACKS_KEY) || '[]');
+    return Array.isArray(value) ? value : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function isTrackDownloaded(trackId, artist, title) {
+  if (trackId && localStorage.getItem(`ym_downloaded_track:${String(trackId)}`) === '1') return true;
+  if (trackId && getDownloadedTrackRegistry().some(item => String(item.id) === String(trackId))) return true;
+  return Boolean(artist && title && localStorage.getItem(
     downloadStorageKey(buildDownloadFileName(artist, title, 'flac'))
-  ) === '1';
+  ) === '1');
+}
+
+function hasDownloadedVariant(trackId, toCache) {
+  return getDownloadedTrackRegistry().some(item =>
+    String(item.id) === String(trackId) && Boolean(item.toCache) === Boolean(toCache)
+  );
 }
 
 function setDownloadButtonsProgress(percent, active) {
@@ -2880,13 +3274,30 @@ function setDownloadButtonsProgress(percent, active) {
 
 window.onTrackDownloadProgress = function(fileName, percent, done, error) {
   if (error) {
+    const metadata = pendingDownloadMetadata.get(fileName);
+    if (metadata) activeDownloadIds.delete(downloadVariantKey(metadata.id, metadata.toCache));
+    pendingDownloadMetadata.delete(fileName);
     setDownloadButtonsProgress(0, false);
     showToast(`Ошибка загрузки: ${error}`, 'bi-exclamation-triangle');
     return;
   }
   setDownloadButtonsProgress(percent, !done);
   if (done) {
-    localStorage.setItem(downloadStorageKey(fileName), '1');
+    const metadata = pendingDownloadMetadata.get(fileName);
+    pendingDownloadMetadata.delete(fileName);
+    if (metadata) {
+      activeDownloadIds.delete(downloadVariantKey(metadata.id, metadata.toCache));
+      localStorage.setItem(downloadStorageKey(fileName), '1');
+      localStorage.setItem(`ym_downloaded_track:${metadata.id}`, '1');
+      const records = getDownloadedTrackRegistry().filter(item =>
+        !(String(item.id) === String(metadata.id) && item.fileName === fileName)
+      );
+      records.unshift({ ...metadata, fileName, completedAt: Date.now() });
+      try { localStorage.setItem(DOWNLOADED_TRACKS_KEY, JSON.stringify(records)); } catch (_) {}
+      if (document.getElementById('library-downloads-view')?.style.display !== 'none') {
+        renderDownloadedTracks();
+      }
+    }
     showToast(`Файл загружен: ${fileName}`, 'bi-check-circle-fill', 'success');
     if (typeof renderTracks === 'function') renderTracks();
   }
@@ -2894,12 +3305,13 @@ window.onTrackDownloadProgress = function(fileName, percent, done, error) {
 
 // Filenames come from track titles, which can carry any character. Strip the
 // ones that are illegal in a path or that the native guard rejects.
-function buildDownloadFileName(artist, title, ext) {
+function buildDownloadFileName(artist, title, ext, trackId) {
   const clean = (s) => String(s || '').replace(/[\\/:*?"<>|\x00-\x1f]/g, ' ').replace(/\s+/g, ' ').trim();
   const a = clean(artist);
   const t = clean(title) || 'track';
   const base = a ? `${a} - ${t}` : t;
-  return `${base.slice(0, 120)}.${ext}`;
+  const idSuffix = trackId ? ` [${clean(trackId).slice(0, 18)}]` : '';
+  return `${base.slice(0, Math.max(1, 120 - idSuffix.length))}${idSuffix}.${ext}`;
 }
 
 // The stream URL encodes the codec in its path (get-flac vs get-mp3), which is
@@ -2915,14 +3327,19 @@ function detectAudioFormat(streamUrl) {
 // Resolve one track's stream URL and hand it to DownloadManager. Deliberately
 // silent so the batch path can enqueue a whole library without a toast per
 // track; downloadTrackToDevice() wraps this with user-facing feedback.
-async function enqueueTrackDownload(track, artistName, trackId) {
+async function enqueueTrackDownload(track, artistName, trackId, toCache) {
   if (!trackId || !state.token) return false;
   if (!(window.AndroidBridge && typeof window.AndroidBridge.downloadTrack === 'function')) return false;
+  if (hasDownloadedVariant(trackId, toCache)) return true;
+  const activeKey = downloadVariantKey(trackId, toCache);
+  if (activeDownloadIds.has(activeKey)) return true;
 
   let streamUrl;
   let downloadInfo;
   try {
-    const downloadQuality = 'lossless';
+    // User downloads are lossless FLAC; the private cache deliberately uses
+    // 320 kbps MP3 to avoid consuming excessive storage.
+    const downloadQuality = toCache ? 'nq' : 'lossless';
     downloadInfo = await YandexClient.getDownloadInfo(trackId, state.token, downloadQuality);
     // getDownloadInfo follows the PC client and returns `url`; the playback
     // resolver uses the older `streamUrl` field.
@@ -2954,19 +3371,43 @@ async function enqueueTrackDownload(track, artistName, trackId) {
     : detectAudioFormat(streamUrl);
   const title = track.title || track.track?.title || 'Трек';
   const artist = artistName || (typeof track.artists === 'string' ? track.artists : '') || '';
-  const fileName = buildDownloadFileName(artist, title, ext);
+  const publicFileName = buildDownloadFileName(artist, title, ext, trackId);
+  // Keep cache and Music downloads distinct even if both happen to use the
+  // same codec; the native bridge can then resolve/delete by filename safely.
+  const fileName = toCache
+    ? publicFileName.replace(/(\.[^.]+)$/, ' [cache]$1')
+    : publicFileName;
+  let coverUri = track.coverUri || track.cover || track.track?.coverUri ||
+    track.track?.cover || track.track?.albums?.[0]?.coverUri || '';
+  if (coverUri && coverUri.includes('%%')) coverUri = `https://${coverUri.replace('%%', '400x400')}`;
+  else if (coverUri && !coverUri.startsWith('http')) coverUri = `https://${coverUri}`;
+  pendingDownloadMetadata.set(fileName, {
+    id: String(trackId),
+    title: String(title),
+    artist: String(artist),
+    coverUri,
+    mime,
+    toCache: Boolean(toCache)
+  });
+  activeDownloadIds.add(activeKey);
 
   try {
-    const ok = Boolean(window.AndroidBridge.downloadTrack(streamUrl, fileName, mime, false, downloadInfo.keyBase64));
-    ylog('DOWNLOAD', `bridge enqueue track=${trackId} ok=${ok} file=${fileName}`);
+    const ok = Boolean(window.AndroidBridge.downloadTrack(streamUrl, fileName, mime, toCache, downloadInfo.keyBase64));
+    if (!ok) {
+      pendingDownloadMetadata.delete(fileName);
+      activeDownloadIds.delete(activeKey);
+    }
+    ylog('DOWNLOAD', `bridge enqueue track=${trackId} ok=${ok} cache=${Boolean(toCache)} file=${fileName}`);
     return ok;
   } catch (e) {
+    pendingDownloadMetadata.delete(fileName);
+    activeDownloadIds.delete(activeKey);
     ylogError('DOWNLOAD', `bridge exception track=${trackId}: ${e?.message || e}`);
     return false;
   }
 }
 
-async function downloadTrackToDevice(track, artistName, trackId) {
+async function downloadTrackToDevice(track, artistName, trackId, toCache) {
   if (!trackId) return;
   if (!state.token) {
     showToast('Сначала войдите в аккаунт', 'bi-exclamation-circle');
@@ -2980,14 +3421,14 @@ async function downloadTrackToDevice(track, artistName, trackId) {
   showToast('Получаю ссылку на аудио…', 'bi-cloud-arrow-down');
   let ok = false;
   try {
-    ok = await enqueueTrackDownload(track, artistName, trackId);
+    ok = await enqueueTrackDownload(track, artistName, trackId, toCache);
   } catch (e) {
     ylogError('DOWNLOAD', `download preparation failed track=${trackId}: ${e?.message || e}`);
   }
 
   if (ok) {
     showToast(
-      `Скачиваю в «Музыку»: ${track.title || 'Трек'}`,
+      toCache ? `Скачиваю в кэш: ${track.title || 'Трек'}` : `Скачиваю в «Музыку»: ${track.title || 'Трек'}`,
       'bi-download',
       'success'
     );
@@ -3002,9 +3443,9 @@ async function downloadTrackToDevice(track, artistName, trackId) {
 // bottleneck is URL resolution, which is what the pool bounds.
 let libraryDownloadRunning = false;
 
-async function enqueueTrackDownloadWithRetry(track, artistName, trackId) {
+async function enqueueTrackDownloadWithRetry(track, artistName, trackId, toCache) {
   for (let attempt = 0; attempt < 3; attempt++) {
-    const ok = await enqueueTrackDownload(track, artistName, trackId);
+    const ok = await enqueueTrackDownload(track, artistName, trackId, toCache);
     if (ok) return true;
     if (attempt < 2) {
       await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
@@ -3063,7 +3504,7 @@ async function downloadWholeLibrary(btn) {
       else if (raw.artists) artist = raw.artists.map(a => a && a.name).filter(Boolean).join(', ');
       if (typeof artist !== 'string') artist = '';
 
-      const enqueued = await enqueueTrackDownloadWithRetry(t, artist, id);
+      const enqueued = await enqueueTrackDownloadWithRetry(t, artist, id, false);
       if (enqueued) ok++; else failed++;
       await new Promise((resolve) => setTimeout(resolve, 700));
     }
@@ -3161,9 +3602,10 @@ function openActionSheet(track) {
   if (asBtnDownload) asBtnDownload.style.display = showDownloads ? 'flex' : 'none';
 
   if (showDownloads) {
+    const startDownload = (toCache) => downloadTrackToDevice(track, artistName, trackId, toCache);
     asBtnDownload.onclick = () => {
       closeActionSheet();
-      downloadTrackToDevice(track, artistName, trackId);
+      startDownload(false);
     };
   }
 
@@ -3997,6 +4439,8 @@ let eqAudioCtx = null;
 let eqFilters = [];
 let eqSourceA = null;
 let eqSourceB = null;
+let vibeAuraAnalyser = null;
+let vibeAuraFreqData = null;
 
 const EQ_FREQUENCIES = [60, 230, 910, 3600, 14000];
 const EQ_PRESETS = {
@@ -4047,6 +4491,35 @@ function initEqualizerAudioNode() {
     }
   } catch (e) {
     console.warn("Equalizer Web Audio init warning:", e);
+  }
+}
+
+function ensureVibeAudioAnalysis() {
+  try {
+    if (!eqAudioCtx) initEqualizerAudioNode();
+    if (eqAudioCtx && eqAudioCtx.state === 'suspended') {
+      eqAudioCtx.resume().catch(() => {});
+    }
+    if (eqAudioCtx && !vibeAuraAnalyser) {
+      vibeAuraAnalyser = eqAudioCtx.createAnalyser();
+      vibeAuraAnalyser.fftSize = 64;
+      vibeAuraAnalyser.smoothingTimeConstant = 0.78;
+      vibeAuraFreqData = new Uint8Array(vibeAuraAnalyser.frequencyBinCount);
+      const output = eqFilters[eqFilters.length - 1];
+      if (output) {
+        output.disconnect(eqAudioCtx.destination);
+        output.connect(vibeAuraAnalyser);
+        vibeAuraAnalyser.connect(eqAudioCtx.destination);
+      }
+    }
+  } catch (e) {
+    // If inserting the analyser failed after disconnecting the EQ output,
+    // restore the original signal path so playback never becomes silent.
+    try {
+      const output = eqFilters[eqFilters.length - 1];
+      if (output && eqAudioCtx) output.connect(eqAudioCtx.destination);
+    } catch (_) {}
+    console.warn('Vibe audio analysis unavailable:', e);
   }
 }
 
@@ -4397,35 +4870,11 @@ let vibeAuraCtx = null;
 let vibeAuraWidth = 0;
 let vibeAuraHeight = 0;
 let vibeAuraAnimFrame = null;
-let vibeAuraAnalyser = null;
-let vibeAuraFreqData = null;
-
-let auraCurrentColors = [
-  { r: 254, g: 212, b: 43 },  // YM Gold
-  { r: 35, g: 110, b: 240 },  // Electric Blue
-  { r: 120, g: 30, b: 210 }   // Deep Violet
-];
-let auraTargetColors = [
-  { r: 254, g: 212, b: 43 },
-  { r: 35, g: 110, b: 240 },
-  { r: 120, g: 30, b: 210 }
-];
-
-// Rich multi-blob parameters for deep organic chromatic glow
-const AURA_BLOBS = [
-  { baseX: 0.50, baseY: 0.25, radiusRatio: 0.72, speedX: 0.0006, speedY: 0.0008, phaseX: 0, phaseY: 1.0, colorIdx: 0, alpha: 0.75 },
-  { baseX: 0.30, baseY: 0.30, radiusRatio: 0.58, speedX: 0.0009, speedY: 0.0007, phaseX: 2.3, phaseY: 3.2, colorIdx: 1, alpha: 0.50 },
-  { baseX: 0.70, baseY: 0.28, radiusRatio: 0.60, speedX: 0.0008, speedY: 0.0010, phaseX: 4.1, phaseY: 0.9, colorIdx: 2, alpha: 0.50 }
-];
-
-// 5 High-Definition Concentric Fluid Contour Rings (Official Yandex Music Aesthetic)
-const AURA_RINGS = [
-  { baseRadius: 68,  speed1: 0.0013, speed2: 0.0019, amp1: 6,  amp2: 4,  colorIdx: 0, alpha: 0.85, coreWidth: 2.0 },
-  { baseRadius: 105, speed1: 0.0010, speed2: 0.0015, amp1: 9,  amp2: 6,  colorIdx: 1, alpha: 0.75, coreWidth: 1.8 },
-  { baseRadius: 150, speed1: 0.0008, speed2: 0.0012, amp1: 12, amp2: 8,  colorIdx: 2, alpha: 0.65, coreWidth: 1.6 },
-  { baseRadius: 200, speed1: 0.0006, speed2: 0.0009, amp1: 15, amp2: 10, colorIdx: 0, alpha: 0.50, coreWidth: 1.4 },
-  { baseRadius: 255, speed1: 0.0005, speed2: 0.0007, amp1: 18, amp2: 12, colorIdx: 1, alpha: 0.35, coreWidth: 1.2 }
-];
+let vibeAuraCoverUrl = '';
+let vibeAuraPaletteRequest = 0;
+let auraCurrentColors = [];
+let auraTargetColors = [];
+const vibeAuraReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || false;
 
 function initVibeAmbientAura() {
   vibeAuraCanvas = document.getElementById('vibe-ambient-canvas');
@@ -4454,43 +4903,68 @@ function initVibeAmbientAura() {
 }
 
 function updateVibeAmbientAura(coverUrl) {
-  if (!coverUrl || coverUrl === PLACEHOLDER_COVER) return;
-  try {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      try {
-        const offCanvas = document.createElement('canvas');
-        offCanvas.width = 16;
-        offCanvas.height = 16;
-        const offCtx = offCanvas.getContext('2d');
-        offCtx.drawImage(img, 0, 0, 16, 16);
-        const data = offCtx.getImageData(0, 0, 16, 16).data;
-        const candidates = [];
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i], g = data[i+1], b = data[i+2];
-          const max = Math.max(r, g, b), min = Math.min(r, g, b);
-          const sat = max === 0 ? 0 : (max - min) / max;
-          const lum = (r * 299 + g * 587 + b * 114) / 1000;
-          if (lum > 25 && lum < 235 && sat > 0.15) {
-            candidates.push({ r, g, b, sat, lum });
-          }
+  if (!coverUrl || coverUrl === PLACEHOLDER_COVER) {
+    vibeAuraCoverUrl = '';
+    auraTargetColors = [];
+    auraCurrentColors = [];
+    return;
+  }
+  let cover = String(coverUrl);
+  if (cover.includes('%%')) cover = cover.replace('%%', '400x400');
+  if (!cover.startsWith('http')) cover = `https://${cover}`;
+  if (cover === vibeAuraCoverUrl) return;
+
+  vibeAuraCoverUrl = cover;
+  const requestId = ++vibeAuraPaletteRequest;
+  const image = new Image();
+  image.crossOrigin = 'anonymous';
+  image.onload = () => {
+    if (requestId !== vibeAuraPaletteRequest || cover !== vibeAuraCoverUrl) return;
+    const sampleCanvas = document.createElement('canvas');
+    sampleCanvas.width = 24;
+    sampleCanvas.height = 24;
+    const sampleCtx = sampleCanvas.getContext('2d', { willReadFrequently: true });
+    if (!sampleCtx) return;
+    try {
+      sampleCtx.drawImage(image, 0, 0, sampleCanvas.width, sampleCanvas.height);
+      const pixels = sampleCtx.getImageData(0, 0, sampleCanvas.width, sampleCanvas.height).data;
+      const candidates = [];
+      for (let i = 0; i < pixels.length; i += 4) {
+        const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2], alpha = pixels[i + 3] / 255;
+        if (alpha < 0.65) continue;
+        const max = Math.max(r, g, b), min = Math.min(r, g, b);
+        const saturation = max ? (max - min) / max : 0;
+        const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        if (luminance < 18) continue;
+        candidates.push({
+          r, g, b,
+          score: saturation * 1.5 + Math.min(luminance / 255, 1) * 0.25
+        });
+      }
+      candidates.sort((a, b) => b.score - a.score);
+      const selected = [];
+      for (const color of candidates) {
+        if (selected.every((chosen) => {
+          const distance = Math.hypot(color.r - chosen.r, color.g - chosen.g, color.b - chosen.b);
+          return distance > 38;
+        })) {
+          selected.push(color);
         }
-        candidates.sort((a, b) => b.sat - a.sat);
-        if (candidates.length >= 3) {
-          auraTargetColors[0] = { r: candidates[0].r, g: candidates[0].g, b: candidates[0].b };
-          auraTargetColors[1] = { r: candidates[Math.floor(candidates.length / 3)].r, g: candidates[Math.floor(candidates.length / 3)].g, b: candidates[Math.floor(candidates.length / 3)].b };
-          auraTargetColors[2] = { r: candidates[Math.floor(candidates.length * 2 / 3)].r, g: candidates[Math.floor(candidates.length * 2 / 3)].g, b: candidates[Math.floor(candidates.length * 2 / 3)].b };
-        } else if (candidates.length >= 1) {
-          const p = candidates[0];
-          auraTargetColors[0] = { r: p.r, g: p.g, b: p.b };
-          auraTargetColors[1] = { r: Math.min(255, p.r + 30), g: Math.max(0, p.g - 20), b: Math.min(255, p.b + 60) };
-          auraTargetColors[2] = { r: Math.max(0, p.r - 40), g: Math.min(255, p.g + 50), b: Math.min(255, p.b + 20) };
-        }
-      } catch (e) {}
-    };
-    img.src = coverUrl;
-  } catch (e) {}
+        if (selected.length === 3) break;
+      }
+      if (!selected.length && candidates.length) selected.push(candidates[0]);
+      auraTargetColors = selected.slice(0, 3).map(({ r, g, b }) => ({ r, g, b }));
+      startAuraLoop();
+    } catch (error) {
+      // A cross-origin image without CORS headers cannot be sampled safely.
+      // Keep the aura empty instead of drawing the cover or inventing colors.
+      if (requestId === vibeAuraPaletteRequest) auraTargetColors = [];
+    }
+  };
+  image.onerror = () => {
+    if (requestId === vibeAuraPaletteRequest) auraTargetColors = [];
+  };
+  image.src = cover;
 }
 
 function getAudioSpectrumData() {
@@ -4498,36 +4972,32 @@ function getAudioSpectrumData() {
   let mids = 0;
   let highs = 0;
 
-  if (typeof eqAudioCtx !== 'undefined' && eqAudioCtx) {
-    if (!vibeAuraAnalyser) {
-      try {
-        vibeAuraAnalyser = eqAudioCtx.createAnalyser();
-        vibeAuraAnalyser.fftSize = 64;
-        vibeAuraAnalyser.smoothingTimeConstant = 0.82;
-        vibeAuraFreqData = new Uint8Array(vibeAuraAnalyser.frequencyBinCount);
-        if (typeof eqFilters !== 'undefined' && eqFilters && eqFilters.length > 0) {
-          eqFilters[eqFilters.length - 1].connect(vibeAuraAnalyser);
-        } else if (typeof eqSourceA !== 'undefined' && eqSourceA) {
-          eqSourceA.connect(vibeAuraAnalyser);
-        }
-      } catch (e) {}
-    }
-    if (vibeAuraAnalyser && state.isPlaying) {
-      vibeAuraAnalyser.getByteFrequencyData(vibeAuraFreqData);
-      bass = (vibeAuraFreqData[0] + vibeAuraFreqData[1] + vibeAuraFreqData[2] + vibeAuraFreqData[3]) / 4 / 255;
-      mids = (vibeAuraFreqData[5] + vibeAuraFreqData[7] + vibeAuraFreqData[9]) / 3 / 255;
-      highs = (vibeAuraFreqData[14] + vibeAuraFreqData[18]) / 2 / 255;
-      return { bass, mids, highs, pulse: 1.0 + bass * 0.40 };
-    }
+  if (!vibeAuraAnalyser && eqAudioCtx) ensureVibeAudioAnalysis();
+  if (vibeAuraAnalyser && vibeAuraFreqData && state.isPlaying && activePlayer && !activePlayer.paused) {
+    vibeAuraAnalyser.getByteFrequencyData(vibeAuraFreqData);
+    const count = vibeAuraFreqData.length;
+    const bandMean = (from, to) => {
+      let total = 0, n = 0;
+      for (let i = from; i <= to && i < count; i++) { total += vibeAuraFreqData[i]; n++; }
+      return n ? total / n / 255 : 0;
+    };
+    bass = bandMean(0, 3);
+    mids = bandMean(4, 11);
+    highs = bandMean(12, 24);
+    const level = Math.min(1, bass * 0.56 + mids * 0.29 + highs * 0.15);
+    return { bass, mids, highs, pulse: 1.0 + level * 0.32, level };
   }
 
-  if (state.isPlaying) {
-    const t = Date.now() * 0.003;
+  if (state.isPlaying && activePlayer && !activePlayer.paused) {
+    const fallbackTime = Date.now() * 0.0024;
+    const fallbackBass = (0.5 + 0.5 * Math.sin(fallbackTime * 1.7)) * 0.18;
+    const fallbackMids = (0.5 + 0.5 * Math.cos(fallbackTime * 2.3)) * 0.12;
     return {
-      bass: Math.max(0, Math.sin(t * 1.5)) * 0.38,
-      mids: Math.max(0, Math.cos(t * 2.1)) * 0.28,
-      highs: 0.18,
-      pulse: 1.0 + Math.sin(t) * 0.075 + Math.sin(t * 1.8) * 0.035
+      bass: fallbackBass,
+      mids: fallbackMids,
+      highs: 0.08,
+      pulse: 1.0 + fallbackBass * 0.22,
+      level: fallbackBass
     };
   }
 
@@ -4536,7 +5006,8 @@ function getAudioSpectrumData() {
     bass: 0.04,
     mids: 0.04,
     highs: 0.04,
-    pulse: 1.0 + Math.sin(t) * 0.025
+    pulse: 1.0 + Math.sin(t) * 0.018,
+    level: 0
   };
 }
 
@@ -4551,124 +5022,78 @@ function startAuraLoop() {
 }
 
 function renderAuraFrame() {
-  // Do not keep a rAF callback alive for the whole app lifetime when the Wave
-  // tab is not even visible. The loop restarts from startAuraLoop().
+  // Soft, flowing color haze; unlike the old visualizer this draws no hard rings or ribbons.
   vibeAuraAnimFrame = 0;
   if (!vibeAuraCtx) return;
+  if (!vibeAuraReducedMotion) vibeAuraAnimFrame = requestAnimationFrame(renderAuraFrame);
   if (!auraViewIsActive()) return;
-  vibeAuraAnimFrame = requestAnimationFrame(renderAuraFrame);
 
   const now = Date.now();
-  const audio = getAudioSpectrumData();
-
-  // Smoothly interpolate colors (lerp)
-  for (let i = 0; i < 3; i++) {
-    auraCurrentColors[i].r += (auraTargetColors[i].r - auraCurrentColors[i].r) * 0.045;
-    auraCurrentColors[i].g += (auraTargetColors[i].g - auraCurrentColors[i].g) * 0.045;
-    auraCurrentColors[i].b += (auraTargetColors[i].b - auraCurrentColors[i].b) * 0.045;
-  }
-
-  vibeAuraCtx.clearRect(0, 0, vibeAuraWidth, vibeAuraHeight);
-
-  // 1. Deep Atmospheric Gradient Cloud (Zero-GPU-overhead multi-stop diffusion)
-  AURA_BLOBS.forEach((blob) => {
-    const offsetX = Math.sin(now * blob.speedX + blob.phaseX) * (vibeAuraWidth * 0.16);
-    const offsetY = Math.cos(now * blob.speedY + blob.phaseY) * (vibeAuraHeight * 0.12);
-    const cx = vibeAuraWidth * blob.baseX + offsetX;
-    const cy = vibeAuraHeight * blob.baseY + offsetY;
-    const radius = Math.min(vibeAuraWidth, vibeAuraHeight) * blob.radiusRatio * audio.pulse;
-
-    const col = auraCurrentColors[blob.colorIdx] || auraCurrentColors[0];
-    const grad = vibeAuraCtx.createRadialGradient(cx, cy, radius * 0.05, cx, cy, radius);
-    grad.addColorStop(0,    `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, ${blob.alpha})`);
-    grad.addColorStop(0.18, `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, ${blob.alpha * 0.72})`);
-    grad.addColorStop(0.40, `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, ${blob.alpha * 0.42})`);
-    grad.addColorStop(0.65, `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, ${blob.alpha * 0.16})`);
-    grad.addColorStop(0.85, `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, ${blob.alpha * 0.04})`);
-    grad.addColorStop(1,    `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, 0)`);
-
-    vibeAuraCtx.fillStyle = grad;
-    vibeAuraCtx.beginPath();
-    vibeAuraCtx.arc(cx, cy, radius, 0, Math.PI * 2);
-    vibeAuraCtx.fill();
-  });
-
-  // 2. Razor-Sharp 3-Pass Luminous Visualizer Bands (Silky 120 FPS Bloom)
-  const centerX = vibeAuraWidth * 0.5;
-  const centerY = 110; // Center of play button
-
-  // A. Concentric Fluid Contour Rings
-  AURA_RINGS.forEach((ring, idx) => {
-    const col = auraCurrentColors[ring.colorIdx] || auraCurrentColors[0];
-    const baseR = ring.baseRadius * audio.pulse;
-    const numPoints = 84;
-    const step = (Math.PI * 2) / numPoints;
-
-    vibeAuraCtx.beginPath();
-    for (let i = 0; i <= numPoints; i++) {
-      const theta = i * step;
-      const wave1 = Math.sin(theta * 2 + now * ring.speed1 + idx * 1.3) * ring.amp1;
-      const wave2 = Math.cos(theta * 3 - now * ring.speed2 + idx * 2.1) * ring.amp2;
-      const audioRipple = Math.sin(theta * 5 + now * 0.005) * (audio.mids * 15 + audio.bass * 11);
-      const r = baseR + wave1 + wave2 + audioRipple;
-
-      const px = centerX + Math.cos(theta) * r;
-      const py = centerY + Math.sin(theta) * (r * 0.88);
-
-      if (i === 0) vibeAuraCtx.moveTo(px, py);
-      else vibeAuraCtx.lineTo(px, py);
-    }
-    vibeAuraCtx.closePath();
-
-    // Pass 1: Soft Atmospheric Bloom
-    vibeAuraCtx.strokeStyle = `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, ${ring.alpha * 0.16})`;
-    vibeAuraCtx.lineWidth = ring.coreWidth * 4.5;
-    vibeAuraCtx.stroke();
-
-    // Pass 2: Vibrant Mid Glow
-    vibeAuraCtx.strokeStyle = `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, ${ring.alpha * 0.42})`;
-    vibeAuraCtx.lineWidth = ring.coreWidth * 2.2;
-    vibeAuraCtx.stroke();
-
-    // Pass 3: Crisp Bright Core
-    vibeAuraCtx.strokeStyle = `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, ${Math.min(0.95, ring.alpha + audio.bass * 0.25)})`;
-    vibeAuraCtx.lineWidth = ring.coreWidth;
-    vibeAuraCtx.stroke();
-  });
-
-  // B. Upper Flowing Stream Ribbons behind "Моя Волна"
-  const waveRibbons = [
-    { y: centerY - 48, speed: 0.0016, freq: 0.009, amp: 15, colorIdx: 0 },
-    { y: centerY + 62, speed: 0.0011, freq: 0.007, amp: 19, colorIdx: 1 }
+  const audio = vibeAuraReducedMotion
+    ? { bass: 0, mids: 0, highs: 0, pulse: 1, level: 0 }
+    : getAudioSpectrumData();
+  const ctx = vibeAuraCtx;
+  ctx.clearRect(0, 0, vibeAuraWidth, vibeAuraHeight);
+  const hero = document.querySelector('.vibe-hero');
+  const heroRect = hero?.getBoundingClientRect();
+  const canvasRect = vibeAuraCanvas.getBoundingClientRect();
+  const cx = vibeAuraWidth * 0.5;
+  const cy = heroRect ? heroRect.top - canvasRect.top + heroRect.height * 0.54 : vibeAuraHeight * 0.4;
+  const radius = Math.min(vibeAuraWidth * 0.68, vibeAuraHeight * 0.58) * (1 + audio.level * 0.42);
+  const phase = vibeAuraReducedMotion ? 0 : now * 0.00042;
+  const pools = [
+    { dx: 0, dy: 0, sx: 1.08, sy: 0.82, opacity: 0.3, phase: 0 },
+    { dx: -0.32, dy: -0.06, sx: 0.8, sy: 1.0, opacity: 0.21, phase: 2.1 },
+    { dx: 0.32, dy: 0.04, sx: 0.86, sy: 0.76, opacity: 0.21, phase: 4.0 }
   ];
 
-  waveRibbons.forEach((ribbon, rIdx) => {
-    const col = auraCurrentColors[ribbon.colorIdx] || auraCurrentColors[0];
-    vibeAuraCtx.beginPath();
-    const startX = -10;
-    const endX = vibeAuraWidth + 10;
-    const stepX = 14;
+  // Always keep a restrained ambient motion even when cover art is unavailable,
+  // opaque to canvas sampling, or reduced-motion is enabled. Use sampled art
+  // colors whenever available; otherwise fall back to a calm blue-violet glow.
+  const auraColors = auraTargetColors.length
+    ? auraTargetColors
+    : [{ r: 112, g: 130, b: 190 }];
+  if (auraCurrentColors.length !== auraColors.length) {
+    auraCurrentColors = auraColors.map((color) => ({ ...color }));
+  } else if (!vibeAuraReducedMotion) {
+    auraCurrentColors = auraCurrentColors.map((color, index) => ({
+      r: color.r + (auraColors[index].r - color.r) * 0.055,
+      g: color.g + (auraColors[index].g - color.g) * 0.055,
+      b: color.b + (auraColors[index].b - color.b) * 0.055
+    }));
+  }
 
-    for (let x = startX; x <= endX; x += stepX) {
-      const h1 = Math.sin(x * ribbon.freq + now * ribbon.speed + rIdx) * ribbon.amp;
-      const h2 = Math.cos(x * ribbon.freq * 1.8 - now * ribbon.speed * 0.7) * (ribbon.amp * 0.35);
-      const audioBounce = Math.sin(x * 0.02 + now * 0.005) * (audio.mids * 11 + audio.highs * 7);
-      const y = ribbon.y + h1 + h2 + audioBounce;
-
-      if (x === startX) vibeAuraCtx.moveTo(x, y);
-      else vibeAuraCtx.lineTo(x, y);
-    }
-
-    // Pass 1: Bloom
-    vibeAuraCtx.strokeStyle = `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, 0.12)`;
-    vibeAuraCtx.lineWidth = 6.0;
-    vibeAuraCtx.stroke();
-
-    // Pass 2: Core
-    vibeAuraCtx.strokeStyle = `rgba(${Math.round(col.r)}, ${Math.round(col.g)}, ${Math.round(col.b)}, ${0.45 + audio.mids * 0.3})`;
-    vibeAuraCtx.lineWidth = 1.8;
-    vibeAuraCtx.stroke();
+  ctx.globalCompositeOperation = 'screen';
+  pools.forEach((pool, index) => {
+    const x = cx + pool.dx * vibeAuraWidth * 0.38 + Math.sin(phase + pool.phase + audio.mids * 2) * vibeAuraWidth * (0.04 + audio.mids * 0.06);
+    const y = cy + pool.dy * vibeAuraHeight + Math.cos(phase * 0.8 + pool.phase + audio.highs) * vibeAuraHeight * (0.035 + audio.highs * 0.04);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.sin(phase + pool.phase) * 0.2);
+    ctx.scale(pool.sx, pool.sy);
+    const gradient = ctx.createRadialGradient(0, 0, radius * 0.025, 0, 0, radius);
+    const color = auraCurrentColors[index % auraCurrentColors.length];
+    const rgb = `${Math.round(color.r)},${Math.round(color.g)},${Math.round(color.b)}`;
+    const reactiveOpacity = pool.opacity * (0.72 + audio.level * 0.9);
+    gradient.addColorStop(0, 'rgba(' + rgb + ',' + reactiveOpacity + ')');
+    gradient.addColorStop(0.22, 'rgba(' + rgb + ',' + (reactiveOpacity * 0.72) + ')');
+    gradient.addColorStop(0.5, 'rgba(' + rgb + ',' + (reactiveOpacity * 0.28) + ')');
+    gradient.addColorStop(1, 'rgba(' + rgb + ',0)');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   });
+  ctx.globalCompositeOperation = 'destination-in';
+  const auraMask = ctx.createRadialGradient(cx, cy, radius * 0.18, cx, cy, radius * 1.18);
+  auraMask.addColorStop(0, 'rgba(255,255,255,1)');
+  auraMask.addColorStop(0.52, 'rgba(255,255,255,.94)');
+  auraMask.addColorStop(0.82, 'rgba(255,255,255,.42)');
+  auraMask.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = auraMask;
+  ctx.fillRect(0, 0, vibeAuraWidth, vibeAuraHeight);
+  ctx.globalCompositeOperation = 'source-over';
 }
 
 // ==========================================

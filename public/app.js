@@ -1186,12 +1186,7 @@ window.handleAndroidBack = function() {
       return true;
     }
 
-    // 2. Update modal, then the auth modal.
-    const updateModal = document.getElementById('update-modal');
-    if (updateModal && !updateModal.classList.contains('hidden')) {
-      updateModal.classList.add('hidden');
-      return true;
-    }
+    // 2. Auth modal.
     const authModal = document.getElementById('auth-modal');
     if (authModal && !authModal.classList.contains('hidden')) {
       authModal.classList.add('hidden');
@@ -2875,7 +2870,7 @@ function isTrackDownloaded(artist, title) {
 }
 
 function setDownloadButtonsProgress(percent, active) {
-  ['as-btn-download', 'as-btn-download-cache'].forEach((id) => {
+  ['as-btn-download'].forEach((id) => {
     const button = document.getElementById(id);
     if (!button) return;
     button.classList.toggle('download-active', active);
@@ -2920,16 +2915,14 @@ function detectAudioFormat(streamUrl) {
 // Resolve one track's stream URL and hand it to DownloadManager. Deliberately
 // silent so the batch path can enqueue a whole library without a toast per
 // track; downloadTrackToDevice() wraps this with user-facing feedback.
-async function enqueueTrackDownload(track, artistName, trackId, toCache) {
+async function enqueueTrackDownload(track, artistName, trackId) {
   if (!trackId || !state.token) return false;
   if (!(window.AndroidBridge && typeof window.AndroidBridge.downloadTrack === 'function')) return false;
 
   let streamUrl;
   let downloadInfo;
   try {
-    // User downloads are lossless FLAC; the private cache deliberately uses
-    // 320 kbps MP3 to avoid consuming excessive storage.
-    const downloadQuality = toCache ? 'nq' : 'lossless';
+    const downloadQuality = 'lossless';
     downloadInfo = await YandexClient.getDownloadInfo(trackId, state.token, downloadQuality);
     // getDownloadInfo follows the PC client and returns `url`; the playback
     // resolver uses the older `streamUrl` field.
@@ -2964,8 +2957,8 @@ async function enqueueTrackDownload(track, artistName, trackId, toCache) {
   const fileName = buildDownloadFileName(artist, title, ext);
 
   try {
-    const ok = Boolean(window.AndroidBridge.downloadTrack(streamUrl, fileName, mime, toCache, downloadInfo.keyBase64));
-    ylog('DOWNLOAD', `bridge enqueue track=${trackId} ok=${ok} cache=${Boolean(toCache)} file=${fileName}`);
+    const ok = Boolean(window.AndroidBridge.downloadTrack(streamUrl, fileName, mime, false, downloadInfo.keyBase64));
+    ylog('DOWNLOAD', `bridge enqueue track=${trackId} ok=${ok} file=${fileName}`);
     return ok;
   } catch (e) {
     ylogError('DOWNLOAD', `bridge exception track=${trackId}: ${e?.message || e}`);
@@ -2973,7 +2966,7 @@ async function enqueueTrackDownload(track, artistName, trackId, toCache) {
   }
 }
 
-async function downloadTrackToDevice(track, artistName, trackId, toCache) {
+async function downloadTrackToDevice(track, artistName, trackId) {
   if (!trackId) return;
   if (!state.token) {
     showToast('Сначала войдите в аккаунт', 'bi-exclamation-circle');
@@ -2987,14 +2980,14 @@ async function downloadTrackToDevice(track, artistName, trackId, toCache) {
   showToast('Получаю ссылку на аудио…', 'bi-cloud-arrow-down');
   let ok = false;
   try {
-    ok = await enqueueTrackDownload(track, artistName, trackId, toCache);
+    ok = await enqueueTrackDownload(track, artistName, trackId);
   } catch (e) {
     ylogError('DOWNLOAD', `download preparation failed track=${trackId}: ${e?.message || e}`);
   }
 
   if (ok) {
     showToast(
-      toCache ? `Скачиваю в кэш: ${track.title || 'Трек'}` : `Скачиваю в «Музыку»: ${track.title || 'Трек'}`,
+      `Скачиваю в «Музыку»: ${track.title || 'Трек'}`,
       'bi-download',
       'success'
     );
@@ -3009,9 +3002,9 @@ async function downloadTrackToDevice(track, artistName, trackId, toCache) {
 // bottleneck is URL resolution, which is what the pool bounds.
 let libraryDownloadRunning = false;
 
-async function enqueueTrackDownloadWithRetry(track, artistName, trackId, toCache) {
+async function enqueueTrackDownloadWithRetry(track, artistName, trackId) {
   for (let attempt = 0; attempt < 3; attempt++) {
-    const ok = await enqueueTrackDownload(track, artistName, trackId, toCache);
+    const ok = await enqueueTrackDownload(track, artistName, trackId);
     if (ok) return true;
     if (attempt < 2) {
       await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
@@ -3070,7 +3063,7 @@ async function downloadWholeLibrary(btn) {
       else if (raw.artists) artist = raw.artists.map(a => a && a.name).filter(Boolean).join(', ');
       if (typeof artist !== 'string') artist = '';
 
-      const enqueued = await enqueueTrackDownloadWithRetry(t, artist, id, false);
+      const enqueued = await enqueueTrackDownloadWithRetry(t, artist, id);
       if (enqueued) ok++; else failed++;
       await new Promise((resolve) => setTimeout(resolve, 700));
     }
@@ -3156,7 +3149,6 @@ function openActionSheet(track) {
   // getStreamUrl already honours ym_audio_quality — so a lossless user gets a
   // FLAC file and everyone else an MP3 at their chosen bitrate.
   const asBtnDownload = document.getElementById('as-btn-download');
-  const asBtnDownloadCache = document.getElementById('as-btn-download-cache');
   const asDownloadText = document.getElementById('as-download-text');
 
   const isNative = window.AndroidBridge && typeof window.AndroidBridge.downloadTrack === 'function';
@@ -3167,17 +3159,11 @@ function openActionSheet(track) {
   }
   const showDownloads = isNative && Boolean(trackId);
   if (asBtnDownload) asBtnDownload.style.display = showDownloads ? 'flex' : 'none';
-  if (asBtnDownloadCache) asBtnDownloadCache.style.display = showDownloads ? 'flex' : 'none';
 
   if (showDownloads) {
-    const startDownload = (toCache) => downloadTrackToDevice(track, artistName, trackId, toCache);
     asBtnDownload.onclick = () => {
       closeActionSheet();
-      startDownload(false);
-    };
-    asBtnDownloadCache.onclick = () => {
-      closeActionSheet();
-      startDownload(true);
+      downloadTrackToDevice(track, artistName, trackId);
     };
   }
 
@@ -4273,220 +4259,6 @@ function initEqualizerAndQualityUI() {
 }
 
 // ==========================================
-// In-App Auto-Update System (Vercel Host)
-// ==========================================
-function getAppVersionInfo() {
-  // Fallbacks must stay in sync with android:versionCode / android:versionName
-  // in AndroidManifest.xml. They previously read 4 / '1.0.3', which made a
-  // failed bridge lookup silently claim an ancient version and could hide or
-  // fake an update.
-  let versionCode = 23;
-  let versionName = '1.1.6';
-  if (window.AndroidBridge) {
-    if (typeof window.AndroidBridge.getVersionCode === 'function') {
-      try {
-        const code = window.AndroidBridge.getVersionCode();
-        if (code) versionCode = code;
-      } catch (e) {}
-    }
-    if (typeof window.AndroidBridge.getVersionName === 'function') {
-      try {
-        const name = window.AndroidBridge.getVersionName();
-        if (name) versionName = name;
-      } catch (e) {}
-    }
-  }
-  return { versionCode, versionName };
-}
-
-async function fetchUpdateMetadata() {
-  const endpoints = [
-    'https://ym-liberty-bot.vercel.app/api/version?_t=' + Date.now(),
-    'https://ym-liberty-bot.vercel.app/version.json?_t=' + Date.now()
-  ];
-  let best = null;
-  for (const url of endpoints) {
-    try {
-      const resp = await fetch(url, { cache: 'no-store' });
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data && Number.isFinite(Number(data.versionCode))) {
-          if (!best || Number(data.versionCode) > Number(best.versionCode)) {
-            best = data;
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('Update endpoint check failed:', url, e);
-    }
-  }
-  return best;
-}
-
-async function checkForUpdates(isManual = false) {
-  const current = getAppVersionInfo();
-  const btnCheck = document.getElementById('btn-check-update');
-  const originalBtnHtml = btnCheck ? btnCheck.innerHTML : '';
-
-  if (isManual && btnCheck) {
-    btnCheck.disabled = true;
-    btnCheck.innerHTML = '<div style="width: 14px; height: 14px; border: 2px solid #fff; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></div> <span>Проверка...</span>';
-  }
-
-  try {
-    const data = await fetchUpdateMetadata();
-    if (!data) {
-      if (isManual) showToast('Не удалось проверить обновления');
-      return;
-    }
-
-    if (data.versionCode > current.versionCode) {
-      showUpdateModal(data, current);
-    } else {
-      if (isManual) {
-        showToast(`У вас установлена последняя версия (v${current.versionName})`);
-      }
-    }
-  } catch (err) {
-    console.error('Update check error:', err);
-    if (isManual) showToast('Ошибка при проверке обновлений');
-  } finally {
-    if (isManual && btnCheck) {
-      btnCheck.disabled = false;
-      btnCheck.innerHTML = originalBtnHtml;
-    }
-  }
-}
-
-function showUpdateModal(updateData, current) {
-  const modal = document.getElementById('update-modal');
-  const verTag = document.getElementById('update-version-tag');
-  const changelogList = document.getElementById('update-changelog-list');
-  const progressContainer = document.getElementById('update-progress-container');
-  const progressFill = document.getElementById('update-progress-fill');
-  const progressPct = document.getElementById('update-progress-pct');
-  const progressLabel = document.getElementById('update-progress-label');
-  const statusMsg = document.getElementById('update-status-msg');
-  const btnInstall = document.getElementById('btn-update-install');
-  const btnLater = document.getElementById('btn-update-later');
-  const btnCloseX = document.getElementById('btn-close-update-x');
-
-  if (!modal) return;
-
-  if (verTag) verTag.textContent = `v${updateData.versionName || updateData.versionCode}`;
-  const directLink = document.getElementById('link-direct-download');
-  if (directLink && updateData.apkUrl) {
-    directLink.href = updateData.apkUrl;
-  }
-  if (statusMsg) statusMsg.textContent = '';
-
-  if (changelogList) {
-    changelogList.innerHTML = '';
-    const lines = typeof updateData.changelog === 'string'
-      ? updateData.changelog.split('\n').map(s => s.trim()).filter(Boolean)
-      : Array.isArray(updateData.changelog) ? updateData.changelog : ['Улучшения стабильности и новые функции'];
-    lines.forEach(line => {
-      const li = document.createElement('li');
-      li.textContent = line.replace(/^[•\-\*]\s*/, '');
-      changelogList.appendChild(li);
-    });
-  }
-
-  if (progressContainer) progressContainer.style.display = 'none';
-  if (progressFill) progressFill.style.width = '0%';
-  if (progressPct) progressPct.textContent = '0%';
-  if (progressLabel) progressLabel.textContent = 'Загрузка обновления...';
-
-  if (btnInstall) {
-    btnInstall.disabled = false;
-    btnInstall.innerHTML = '<i class="bi bi-download"></i> <span>Обновить</span>';
-    btnInstall.onclick = () => {
-      if (progressContainer) progressContainer.style.display = 'block';
-      btnInstall.disabled = true;
-      btnInstall.innerHTML = '<div style="width: 14px; height: 14px; border: 2px solid #000; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></div> <span>Загрузка...</span>';
-
-      if (window.AndroidBridge && typeof window.AndroidBridge.downloadAndInstall === 'function') {
-        window.AndroidBridge.downloadAndInstall(updateData.apkUrl);
-      } else {
-        // Fallback for browser testing
-        window.open(updateData.apkUrl, '_blank');
-        setTimeout(() => {
-          btnInstall.disabled = false;
-          btnInstall.innerHTML = '<i class="bi bi-download"></i> <span>Обновить</span>';
-        }, 1500);
-      }
-    };
-  }
-
-  const closeModal = () => modal.classList.add('hidden');
-  if (btnLater) btnLater.onclick = closeModal;
-  if (btnCloseX) btnCloseX.onclick = closeModal;
-
-  modal.classList.remove('hidden');
-}
-
-// Global callbacks from native Android download thread (ApkDownloadRunnable / UpdateProgressRunnable)
-window.onUpdateDownloadProgress = function(percent) {
-  const progressFill = document.getElementById('update-progress-fill');
-  const progressPct = document.getElementById('update-progress-pct');
-  const progressLabel = document.getElementById('update-progress-label');
-  const btnInstall = document.getElementById('btn-update-install');
-
-  if (progressFill) progressFill.style.width = percent + '%';
-  if (progressPct) progressPct.textContent = percent + '%';
-  if (progressLabel) {
-    progressLabel.textContent = percent >= 100 ? 'Открытие установщика пакетов...' : 'Загрузка обновления...';
-  }
-  if (percent >= 100 && btnInstall) {
-    btnInstall.innerHTML = '<i class="bi bi-check-circle-fill"></i> <span>Установка...</span>';
-  }
-};
-
-window.onUpdateDownloadError = function(errorMsg) {
-  console.error('Update download error:', errorMsg);
-  const statusMsg = document.getElementById('update-status-msg');
-  const btnInstall = document.getElementById('btn-update-install');
-  const progressFill = document.getElementById('update-progress-fill');
-
-  if (statusMsg) {
-    statusMsg.style.color = '#ff4d4f';
-    statusMsg.textContent = 'Ошибка загрузки: ' + (errorMsg || 'сбой сети');
-  }
-  if (progressFill) progressFill.style.width = '0%';
-  if (btnInstall) {
-    btnInstall.disabled = false;
-    btnInstall.innerHTML = '<i class="bi bi-arrow-repeat"></i> <span>Повторить</span>';
-  }
-  showToast('Ошибка загрузки обновления');
-};
-
-function initAppUpdater() {
-  const current = getAppVersionInfo();
-  const verLabel = document.getElementById('app-version-label');
-  if (verLabel) {
-    verLabel.textContent = `v${current.versionName} (Сборка ${current.versionCode})`;
-  }
-
-  const btnCheck = document.getElementById('btn-check-update');
-  if (btnCheck) {
-    btnCheck.addEventListener('click', () => {
-      checkForUpdates(true);
-    });
-  }
-
-  // Automatic background update check with 6h throttle
-  setTimeout(() => {
-    const lastCheck = parseInt(localStorage.getItem('ym_last_update_check') || '0', 10);
-    const now = Date.now();
-    const sixHours = 6 * 60 * 60 * 1000;
-    if (now - lastCheck > sixHours) {
-      localStorage.setItem('ym_last_update_check', now.toString());
-      checkForUpdates(false);
-    }
-  }, 3500);
-}
-
-// ==========================================
 // Home Screen: Personalized New Releases (Новинки и Премьеры)
 // ==========================================
 let homeReleasesCache = null;
@@ -5219,7 +4991,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initVibeMoodChips();
   updateWaveStatsDisplay();
   initEqualizerAndQualityUI();
-  initAppUpdater();
   initHomeNewReleases();
   initVibeAmbientAura();
   initSwipeGestures();
@@ -5230,7 +5001,6 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
   initVibeMoodChips();
   updateWaveStatsDisplay();
   initEqualizerAndQualityUI();
-  initAppUpdater();
   initHomeNewReleases();
   initVibeAmbientAura();
   initSwipeGestures();

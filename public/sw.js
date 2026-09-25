@@ -1,55 +1,74 @@
-const CACHE_NAME = "ym-liberty-v9";
-const ASSETS_TO_CACHE = [
+const CACHE_NAME = "ym-liberty-shell-v10";
+const APP_SHELL = [
   "./",
-  "index.html",
-  "app.css",
-  "app.js",
-  "yandex.js",
-  "manifest.json",
-  "favicon.png",
-  "icon-192.png",
-  "icon-512.png"
+  "./index.html",
+  "./app.css",
+  "./app.js",
+  "./yandex.js",
+  "./manifest.json",
+  "./favicon.png",
+  "./icon-192.png",
+  "./icon-512.png"
 ];
+const APP_SHELL_URLS = new Set(
+  APP_SHELL.map((asset) => new URL(asset, self.location.href).href)
+);
 
 self.addEventListener("install", (event) => {
-  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(APP_SHELL))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.map((key) => {
-          if (key !== CACHE_NAME) {
-            return caches.delete(key);
-          }
-        })
-      );
-    }).then(() => self.clients.claim())
+    caches.keys()
+      .then((keys) => Promise.all(
+        keys.filter((key) => key.startsWith("ym-liberty-") && key !== CACHE_NAME)
+          .map((key) => caches.delete(key))
+      ))
+      .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener("fetch", (event) => {
-  // Never cache API or streaming media
+  const request = event.request;
+  const url = new URL(request.url);
+
+  // Never intercept Yandex, auth, API, or audio requests: they must go straight
+  // from the user's browser and must not be persisted by the service worker.
   if (
-    event.request.url.includes("/api/") ||
-    event.request.url.includes(".mp3") ||
-    event.request.url.includes("huggingface.co") ||
-    event.request.url.includes("yandex")
+    request.method !== "GET" ||
+    url.origin !== self.location.origin ||
+    !APP_SHELL_URLS.has(url.href)
   ) {
     return;
   }
 
-  // Network-first strategy: always fetch fresh from server when online
-  event.respondWith(
-    fetch(event.request)
-      .then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200) {
-          const cloned = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned));
+  if (request.mode === "navigate") {
+    event.respondWith(
+      caches.open(CACHE_NAME).then(async (cache) => {
+        try {
+          const response = await fetch(request);
+          if (response.ok) cache.put("./index.html", response.clone());
+          return response;
+        } catch (_) {
+          return (await cache.match("./index.html")) || Response.error();
         }
-        return networkResponse;
       })
-      .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  event.respondWith(
+    caches.match(request).then((cached) => cached || fetch(request).then((response) => {
+      if (response.ok) {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+      }
+      return response;
+    }))
   );
 });

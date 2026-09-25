@@ -34,7 +34,6 @@ const PLACEHOLDER_COVER = 'favicon.png';
     <div class="home-hub-grid">
       <button class="home-hub-card home-hub-continue" id="hub-continue"><i class="bi bi-play-circle-fill"></i><span>Продолжить</span></button>
       <button class="home-hub-card" id="hub-likes"><i class="bi bi-heart-fill"></i><span>Мне нравится</span></button>
-      <button class="home-hub-card" id="hub-downloads"><i class="bi bi-download"></i><span>Загрузки</span></button>
       <button class="home-hub-card" id="hub-releases"><i class="bi bi-stars"></i><span>Новинки</span></button>
     </div>`;
   stats.parentNode.insertBefore(hub, stats);
@@ -173,8 +172,6 @@ function updatePlaybackContextHeader(subtitle, title) {
       state.playbackContext = { subtitle: 'ИГРАЕТ ИЗ АЛЬБОМА', title: 'Альбом' };
     } else if (state.queueMode === 'artist') {
       state.playbackContext = { subtitle: 'ТРЕКИ АРТИСТА', title: state.currentTrack?.artist || 'Артист' };
-    } else if (state.queueMode === 'downloads') {
-      state.playbackContext = { subtitle: 'ОФЛАЙН-ПРОСЛУШИВАНИЕ', title: 'Загрузки' };
     } else {
       state.playbackContext = { subtitle: 'ИГРАЕТ ИЗ КОЛЛЕКЦИИ', title: 'Любимые треки' };
     }
@@ -260,10 +257,7 @@ document.getElementById('hub-likes')?.addEventListener('click', () => {
   document.querySelector('.nav-btn[data-target="view-library"]')?.click();
   document.getElementById('seg-tracks')?.click();
 });
-document.getElementById('hub-downloads')?.addEventListener('click', () => {
-  document.querySelector('.nav-btn[data-target="view-library"]')?.click();
-  document.getElementById('seg-downloads')?.click();
-});
+
 document.getElementById('hub-releases')?.addEventListener('click', () => {
   document.getElementById('vibe-releases-track-list')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 });
@@ -620,12 +614,12 @@ const COLLECTION_CATEGORY_LABELS = {
   party: '\u0412\u0435\u0447\u0435\u0440\u0438\u043d\u043a\u0430', focus: '\u0424\u043e\u043a\u0443\u0441', sad: '\u0413\u0440\u0443\u0441\u0442\u044c'
 };
 const COLLECTION_CATEGORY_RULES = {
-  calm: ['calm','chill','chillout','ambient','classical','neo-classical','new age','lounge','acoustic','relax','sleep','meditation','downtempo','\u043a\u043b\u0430\u0441\u0441\u0438\u043a\u0430','\u0434\u0436\u0430\u0437','jazz','\u0430\u043a\u0443\u0441\u0442','\u0440\u0435\u043b\u0430\u043a\u0441','\u0441\u043f\u043e\u043a\u043e\u0439','\u0442\u0438\u0448\u0438\u043d','\u043c\u044f\u0433\u043a','\u0441\u043e\u043d','\u043c\u0435\u0434\u0438\u0442\u0430\u0446'],
-  road: ['road','driving','travel','car music','rock','pop','indie','alternative','\u0432 \u0434\u043e\u0440\u043e\u0433\u0443','\u043f\u0443\u0442\u0435\u0448\u0435\u0441\u0442\u0432','\u0440\u043e\u043a','\u043f\u043e\u043f','\u0438\u043d\u0434\u0438','\u0430\u043b\u044c\u0442\u0435\u0440','\u0434\u043e\u0440\u043e\u0433'],
-  energy: ['energy','energetic','upbeat','dance','dancing','electronic','edm','house','techno','drum and bass','dnb','metal','punk','hardstyle','workout','running','gym','\u0442\u0430\u043d\u0446\u0435\u0432','\u044d\u043b\u0435\u043a\u0442\u0440\u043e','\u043c\u0435\u0442\u0430\u043b','\u0431\u043e\u0434\u0440','\u044d\u043d\u0435\u0440\u0433','\u0442\u0440\u0435\u043d\u0438\u0440','\u0431\u0435\u0433'],
-  party: ['party','dance party','celebration','celebrate','fun','disco','pop hits','rap','hip-hop','hip hop','trap','rnb','r&b','funk','reggaeton','\u0432\u0435\u0447\u0435\u0440\u0438\u043d','\u043f\u0440\u0430\u0437\u0434\u043d','\u0432\u0435\u0441\u0435\u043b','\u0434\u0438\u0441\u043a\u043e','\u0440\u044d\u043f','\u0445\u0438\u043f-\u0445\u043e\u043f','\u0442\u0440\u044d\u043f','\u0444\u0430\u043d\u043a'],
-  focus: ['focus','concentration','concentrate','study','studying','work','working','productivity','instrumental','instrumentals','lofi','lo-fi','soundtrack','score','minimalism','\u0444\u043e\u043a\u0443\u0441','\u043a\u043e\u043d\u0446\u0435\u043d\u0442\u0440','\u0443\u0447\u0451\u0431','\u0443\u0447\u0435\u0431','\u0440\u0430\u0431\u043e\u0442','\u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442','\u0441\u0430\u0443\u043d\u0434\u0442\u0440\u0435\u043a','\u043a\u0438\u043d\u043e\u043c\u0443\u0437\u044b\u043a'],
-  sad: ['sad','sadness','melancholy','melancholic','heartbreak','breakup','lonely','loss','blues','emo','soul','slow','\u0433\u0440\u0443\u0441\u0442','\u043f\u0435\u0447\u0430\u043b','\u043c\u0435\u043b\u0430\u043d\u0445\u043e\u043b','\u0442\u043e\u0441\u043a','\u043e\u0434\u0438\u043d\u043e\u0447','\u0431\u043b\u044e\u0437','\u044d\u043c\u043e','\u0441\u043e\u0443\u043b']
+  calm: ['calm','chill','chillout','ambient','classical','neo-classical','new age','lounge','acoustic','relax','sleep','meditation','downtempo','\u043a\u043b\u0430\u0441\u0441\u0438\u043a\u0430','\u0434\u0436\u0430\u0437','jazz','\u0430\u043a\u0443\u0441\u0442','\u0440\u0435\u043b\u0430\u043a\u0441','\u0441\u043f\u043e\u043a\u043e\u0439','\u0442\u0438\u0448\u0438\u043d','\u043c\u044f\u0433\u043a','\u0441\u043e\u043d','\u043c\u0435\u0434\u0438\u0442\u0430\u0446','\u0431\u043e\u0441\u0441\u0430-\u043d\u043e\u0432\u0430','\u0430\u043a\u0443\u0441\u0442\u0438\u0447\u0435\u0441\u043a'],
+  road: ['road','driving','travel','car music','rock','pop','indie','alternative','classic rock','indie rock','pop rock','britpop','folk rock','singer-songwriter','country','\u0432 \u0434\u043e\u0440\u043e\u0433\u0443','\u043f\u0443\u0442\u0435\u0448\u0435\u0441\u0442\u0432','\u0440\u043e\u043a','\u043f\u043e\u043f','\u0438\u043d\u0434\u0438','\u0430\u043b\u044c\u0442\u0435\u0440','\u0434\u043e\u0440\u043e\u0433','\u0448\u0430\u043d\u0441\u043e\u043d','\u0430\u0432\u0442\u043e\u0440\u0441\u043a\u0430\u044f \u043f\u0435\u0441\u043d\u044f'],
+  energy: ['energy','energetic','upbeat','dance','dancing','electronic','edm','house','techno','drum and bass','dnb','metal','punk','hardcore','hardstyle','trance','big beat','breakbeat','workout','running','gym','\u0442\u0430\u043d\u0446\u0435\u0432','\u044d\u043b\u0435\u043a\u0442\u0440\u043e','\u043c\u0435\u0442\u0430\u043b','\u0431\u043e\u0434\u0440','\u044d\u043d\u0435\u0440\u0433','\u0442\u0440\u0435\u043d\u0438\u0440','\u0431\u0435\u0433','\u043f\u0430\u043d\u043a','\u0442\u0440\u0430\u043d\u0441','\u0430\u0433\u0440\u0435\u0441\u0441\u0438\u0432','\u0445\u0430\u0440\u0434\u043a\u043e\u0440'],
+  party: ['party','dance party','celebration','celebrate','fun','disco','pop hits','rap','hip-hop','hip hop','trap','rnb','r&b','funk','reggaeton','latin','dancehall','afrobeats','ska','\u0432\u0435\u0447\u0435\u0440\u0438\u043d','\u043f\u0440\u0430\u0437\u0434\u043d','\u0432\u0435\u0441\u0435\u043b','\u0434\u0438\u0441\u043a\u043e','\u0440\u044d\u043f','\u0445\u0438\u043f-\u0445\u043e\u043f','\u0442\u0440\u044d\u043f','\u0444\u0430\u043d\u043a','\u043b\u0430\u0442\u0438\u043d','\u0441\u043a\u0430','\u043f\u043e\u043f-\u043c\u0443\u0437\u044b\u043a\u0430'],
+  focus: ['focus','concentration','concentrate','study','studying','work','working','productivity','instrumental','instrumentals','lofi','lo-fi','soundtrack','score','minimalism','post-rock','post rock','math rock','progressive rock','prog rock','post-classical','\u0444\u043e\u043a\u0443\u0441','\u043a\u043e\u043d\u0446\u0435\u043d\u0442\u0440','\u0443\u0447\u0451\u0431','\u0443\u0447\u0435\u0431','\u0440\u0430\u0431\u043e\u0442','\u0438\u043d\u0441\u0442\u0440\u0443\u043c\u0435\u043d\u0442','\u0441\u0430\u0443\u043d\u0434\u0442\u0440\u0435\u043a','\u043a\u0438\u043d\u043e\u043c\u0443\u0437\u044b\u043a','\u043f\u043e\u0441\u0442-\u0440\u043e\u043a','\u043f\u0440\u043e\u0433\u0440\u0435\u0441\u0441\u0438\u0432','\u043c\u0430\u0442-\u0440\u043e\u043a'],
+  sad: ['sad','sadness','melancholy','melancholic','heartbreak','breakup','lonely','loss','blues','emo','soul','slow','darkwave','dark ambient','gothic','trip-hop','trip hop','\u0433\u0440\u0443\u0441\u0442','\u043f\u0435\u0447\u0430\u043b','\u043c\u0435\u043b\u0430\u043d\u0445\u043e\u043b','\u0442\u043e\u0441\u043a','\u043e\u0434\u0438\u043d\u043e\u0447','\u0431\u043b\u044e\u0437','\u044d\u043c\u043e','\u0441\u043e\u0443\u043b','\u0434\u0440\u0438\u043c-\u043f\u043e\u043f','\u0433\u043e\u0442\u0438\u0447','\u0442\u0440\u0438\u043f-\u0445\u043e\u043f']
 };
 
 function getCollectionLabels(entry) {
@@ -637,8 +631,9 @@ function getCollectionLabels(entry) {
       return [];
     })
     .filter(Boolean).map(String);
-  const albums = [...(Array.isArray(track.albums) ? track.albums : []),
+  const albumInput = [...(Array.isArray(track.albums) ? track.albums : []),
     ...(Array.isArray(entry?.albums) ? entry.albums : [])];
+  const albums = albumInput.flat(Infinity);
   const moodRaw = [
     ...labels(track.moods), ...labels(track.moodTags), ...labels(track.mood),
     ...albums.flatMap(album => [...labels(album?.moods), ...labels(album?.moodTags), ...labels(album?.mood)])
@@ -648,10 +643,11 @@ function getCollectionLabels(entry) {
     ...albums.flatMap(album => [...labels(album?.genres), ...labels(album?.genre)])
   ];
   const matchCategories = (values) => {
-    const haystack = values.join(' ').toLocaleLowerCase().replace(/ё/g, 'е').replace(/[_-]+/g, ' ');
+    const normalize = value => String(value).toLocaleLowerCase().replace(/\u0451/g, '\u0435').replace(/[_-]+/g, ' ');
+    const haystack = values.map(normalize).join(' ');
     return COLLECTION_CATEGORY_ORDER.filter(category =>
       category !== 'all' && COLLECTION_CATEGORY_RULES[category].some(term =>
-        haystack.includes(term.toLocaleLowerCase().replace(/ё/g, 'е').replace(/[_-]+/g, ' '))
+        values.some(value => normalize(value).includes(normalize(term)))
       )
     );
   };
@@ -715,15 +711,6 @@ function renderTracks() {
     };
   }
 
-  const downloadAllBtn = document.getElementById('btn-download-all');
-  if (downloadAllBtn) {
-    // Only the Android build can hand a file to DownloadManager; in a browser
-    // the button would do nothing, so hide it instead of failing on click.
-    const native = window.AndroidBridge && typeof window.AndroidBridge.downloadTrack === 'function';
-    downloadAllBtn.style.display = native ? 'flex' : 'none';
-    downloadAllBtn.onclick = () => downloadWholeLibrary(downloadAllBtn);
-  }
-  
   const visibleTracks = state.collectionTagFilter
     ? state.tracks.filter(track => getCollectionLabels(track).labels.includes(state.collectionTagFilter))
     : state.tracks;
@@ -750,9 +737,6 @@ function renderTracks() {
     }
     const isExplicit = track.explicit || track.contentWarning === 'explicit';
     const badgeHtml = track.isLiberty ? `<span class="liberty-badge"><i class="bi bi-gem"></i></span>` : (isExplicit ? `<span class="explicit-badge">E</span>` : '');
-    const downloadedHtml = isTrackDownloaded(track.id, artist, track.title)
-      ? '<span class="track-download-state" title="Загружено"><i class="bi bi-check-circle-fill"></i></span>'
-      : '';
     div._trackData = track;
     div.innerHTML = `
       <img src="${coverUrl}" loading="lazy" alt="cover">
@@ -760,7 +744,7 @@ function renderTracks() {
         <div class="track-title"><span class="track-title-text">${escapeHtml(track.title)}</span>${badgeHtml}</div>
         <div class="track-artist">${artist}</div>
       </div>
-      ${downloadedHtml}<i class="bi bi-three-dots track-dots" style="color: var(--text-secondary);"></i>
+      <i class="bi bi-three-dots track-dots" style="color: var(--text-secondary);"></i>
     `;
     
     div.addEventListener('click', (e) => {
@@ -850,7 +834,6 @@ function getNextTrack() {
 
 async function preloadNextTrack() {
   try {
-    if (state.queueMode === 'downloads') return;
     if (!state.token) return;
     if (state.queueMode === 'vibe' && state.queueIndex + 2 >= state.queue.length) {
       fetchMoreVibeTracks().catch(() => {});
@@ -1431,6 +1414,24 @@ window.handleMediaSeek = function(posMs) {
   }
 };
 
+
+// Prevent accidental browser pull-to-refresh and keyboard reload shortcuts.
+window.addEventListener('keydown', (event) => {
+  const key = String(event.key || '').toLowerCase();
+  if (key === 'f5' || ((event.ctrlKey || event.metaKey) && key === 'r')) {
+    event.preventDefault();
+    showToast('Обновление страницы отключено в веб-приложении', 'bi-shield-lock');
+  }
+});
+let refreshGestureStartY = 0;
+window.addEventListener('touchstart', (event) => {
+  if (window.scrollY <= 0 && event.touches.length === 1) refreshGestureStartY = event.touches[0].clientY;
+}, { passive: true });
+window.addEventListener('touchmove', (event) => {
+  if (window.scrollY <= 0 && event.touches.length === 1 && event.touches[0].clientY > refreshGestureStartY + 8) {
+    event.preventDefault();
+  }
+}, { passive: false });
 // Native back button (MainActivity.onBackPressed -> evaluateJavascript).
 // Return true when the gesture was consumed by the UI.
 window.handleAndroidBack = function() {
@@ -3030,142 +3031,6 @@ if (state.token) {
   setTimeout(() => dom.authModal.classList.remove('hidden'), 500);
 }
 
-// Collection sub-navigation: liked tracks, playlists, and successful downloads.
-const segTracks = document.getElementById('seg-tracks');
-const segPlaylists = document.getElementById('seg-playlists');
-const viewLibraryTracks = document.getElementById('library-tracks-view');
-const viewLibraryPlaylists = document.getElementById('library-playlists-view');
-const librarySegments = segTracks?.parentElement;
-const libraryContent = viewLibraryTracks?.parentElement;
-let segDownloads = document.getElementById('seg-downloads');
-let viewLibraryDownloads = document.getElementById('library-downloads-view');
-
-if (librarySegments && !segDownloads) {
-  segDownloads = document.createElement('button');
-  segDownloads.type = 'button';
-  segDownloads.id = 'seg-downloads';
-  segDownloads.className = 'segment';
-  segDownloads.style.cssText = 'flex:1;border:none;background:transparent;color:#aaa;padding:8px;border-radius:6px;font-weight:600;';
-  segDownloads.textContent = 'Загрузки';
-  librarySegments.appendChild(segDownloads);
-}
-if (libraryContent && !viewLibraryDownloads) {
-  viewLibraryDownloads = document.createElement('div');
-  viewLibraryDownloads.id = 'library-downloads-view';
-  viewLibraryDownloads.style.display = 'none';
-  viewLibraryDownloads.innerHTML = '<div id="downloaded-tracks-list" class="tracks-list" style="padding-top:15px;"></div>';
-  libraryContent.appendChild(viewLibraryDownloads);
-}
-
-function selectLibrarySegment(selected) {
-  const controls = [
-    [segTracks, 'tracks'],
-    [segPlaylists, 'playlists'],
-    [segDownloads, 'downloads']
-  ];
-  controls.forEach(([button, key]) => {
-    if (!button) return;
-    const active = key === selected;
-    button.classList.toggle('active', active);
-    button.style.background = active ? 'rgba(255,255,255,0.2)' : 'transparent';
-    button.style.color = active ? '#fff' : '#aaa';
-  });
-  if (viewLibraryTracks) viewLibraryTracks.style.display = selected === 'tracks' ? 'block' : 'none';
-  if (viewLibraryPlaylists) viewLibraryPlaylists.style.display = selected === 'playlists' ? 'block' : 'none';
-  if (viewLibraryDownloads) viewLibraryDownloads.style.display = selected === 'downloads' ? 'block' : 'none';
-  if (selected === 'playlists' && !state.playlistsLoaded) fetchPlaylists();
-  if (selected === 'downloads') renderDownloadedTracks();
-}
-
-if (segTracks && segPlaylists) {
-  segTracks.addEventListener('click', () => selectLibrarySegment('tracks'));
-  segPlaylists.addEventListener('click', () => selectLibrarySegment('playlists'));
-  segDownloads?.addEventListener('click', () => selectLibrarySegment('downloads'));
-}
-
-function renderDownloadedTracks() {
-  const list = document.getElementById('downloaded-tracks-list');
-  if (!list) return;
-  const tracks = getDownloadedTrackRegistry().filter(track => track && track.id && track.fileName);
-  if (!tracks.length) {
-    list.innerHTML = '<div class="empty-state"><i class="bi bi-download"></i><p>\u0417\u0434\u0435\u0441\u044c \u043f\u043e\u044f\u0432\u044f\u0442\u0441\u044f \u0437\u0430\u0433\u0440\u0443\u0436\u0435\u043d\u043d\u044b\u0435 \u0442\u0440\u0435\u043a\u0438</p></div>';
-    return;
-  }
-  list.innerHTML = tracks.map(track =>
-    '<div class="track-item downloaded-track-item" data-track-id="' + escapeHtml(track.id) + '" data-file-name="' + escapeHtml(track.fileName) + '">' +
-      '<img src="' + escapeHtml(track.coverUri || PLACEHOLDER_COVER) + '" alt="" loading="lazy" onerror="this.src=\'favicon.png\'">' +
-      '<div class="track-info"><div class="track-title">' + escapeHtml(track.title || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u044b\u0439 \u0442\u0440\u0435\u043a') + '</div>' +
-      '<div class="track-artist">' + escapeHtml(track.artist || '\u041d\u0435\u0438\u0437\u0432\u0435\u0441\u0442\u043d\u044b\u0439 \u0430\u0440\u0442\u0438\u0441\u0442') +
-      (track.toCache ? ' (\u043a\u044d\u0448)' : '') + '</div></div>' +
-      '<button type="button" class="downloaded-track-action" data-action="play" aria-label="\u0412\u043e\u0441\u043f\u0440\u043e\u0438\u0437\u0432\u0435\u0441\u0442\u0438"><i class="bi bi-play-circle-fill"></i></button>' +
-      '<button type="button" class="downloaded-track-action" data-action="delete" aria-label="\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u043a\u0443"><i class="bi bi-trash3"></i></button>' +
-    '</div>'
-  ).join('');
-  list.querySelectorAll('.downloaded-track-item').forEach(row => {
-    const trackId = row.dataset.trackId;
-    const fileName = row.dataset.fileName;
-    row.querySelector('[data-action="play"]')?.addEventListener('click', () => playDownloadedTrack(trackId, fileName));
-    row.querySelector('[data-action="delete"]')?.addEventListener('click', () => deleteDownloadedTrack(trackId, fileName));
-  });
-}
-
-function playDownloadedTrack(trackId, fileName) {
-  const bridge = window.AndroidBridge;
-  if (!bridge || typeof bridge.getDownloadedTrackUrl !== 'function') {
-    showToast('\u041e\0444\043b\0430\0439\043d-\0432\043e\0441\043f\0440\043e\0438\0437\0432\0435\0434\0435\043d\0438\0435 \0434\043e\0441\0442\0443\043f\043d\043e \0432 \043f\0440\0438\043b\043e\0436\0435\u043d\u0438\u0438', 'bi-exclamation-circle');
-    return;
-  }
-  state.queue = getDownloadedTrackRegistry().map(track => {
-    let offlineUrl = '';
-    try { offlineUrl = bridge.getDownloadedTrackUrl(track.fileName) || ''; } catch (_) {}
-    return {
-      id: String(track.id), title: track.title, artists: track.artist || '', offlineUrl,
-      offlineFileName: track.fileName, coverUri: track.coverUri || PLACEHOLDER_COVER,
-      explicit: false, isLiberty: false
-    };
-  }).filter(track => track.offlineUrl);
-  state.queueMode = 'downloads';
-  state.queueIndex = state.queue.findIndex(track =>
-    String(track.id) === String(trackId) && track.offlineFileName === fileName
-  );
-  if (state.queueIndex < 0) {
-    showToast('\u0417\0430\0433\0440\0443\0436\0435\043d\043d\044b\0439 \0444\0430\0439\043b \043d\0435 \043d\0430\0439\0434\0435\043d \043d\0430 \0443\0441\0442\0440\043e\0439\u0441\0442\0432\0435', 'bi-exclamation-triangle');
-    return;
-  }
-  updatePlaybackContextHeader('\u041e\0424\041b\0410\0419\041d-\041f\0420\041e\0421\041b\0423\0428\0418\0412\0410\041d\0418\0415', '\u0417\0430\0433\0440\0443\0437\043a\0438');
-  playQueueTrack(state.queue[state.queueIndex]);
-}
-
-function deleteDownloadedTrack(trackId, fileName) {
-  const record = getDownloadedTrackRegistry().find(track =>
-    String(track.id) === String(trackId) && track.fileName === fileName
-  );
-  if (!record) return;
-  const bridge = window.AndroidBridge;
-  if (!bridge || typeof bridge.deleteDownloadedTrack !== 'function') {
-    showToast('\u0423\0434\0430\043b\0435\043d\0438\0435 \0437\0430\0433\0440\0443\0437\043e\043a \0434\043e\0441\0442\0443\043f\043d\043e \0432 \043f\0440\0438\043b\043e\0436\0435\u043d\0438\u0438', 'bi-exclamation-circle');
-    return;
-  }
-  let deleted = false;
-  try { deleted = Boolean(bridge.deleteDownloadedTrack(record.fileName)); } catch (_) {}
-  if (!deleted) {
-    showToast('\u041d\0435 \0443\0434\0430\043b\043e\0441\044c \0443\0434\0430\043b\0438\0442\044c \0444\0430\0439\043b \0437\0430\0433\0440\0443\0437\043a\0438', 'bi-exclamation-triangle');
-    return;
-  }
-  const remaining = getDownloadedTrackRegistry().filter(track =>
-    !(String(track.id) === String(trackId) && track.fileName === record.fileName)
-  );
-  localStorage.setItem(DOWNLOADED_TRACKS_KEY, JSON.stringify(remaining));
-  if (!remaining.some(track => String(track.id) === String(trackId))) {
-    localStorage.removeItem('ym_downloaded_track:' + String(trackId));
-  }
-  localStorage.removeItem(downloadStorageKey(record.fileName));
-  renderDownloadedTracks();
-  if (state.currentTrack && String(state.currentTrack.id) === String(trackId) &&
-      state.currentTrack.track?.offlineFileName === record.fileName) {
-    activePlayer.pause(); state.isPlaying = false; updatePlayButtons();
-  }
-}
 
 async function fetchPlaylists() {
   const plList = document.getElementById('playlists-list');
@@ -3216,321 +3081,6 @@ if (libSearch) {
   });
 }
 
-// --- Track Downloads ---
-//
-// The native side hands the URL to the system DownloadManager, which owns the
-// transfer and posts its own progress notification. So there is no progress
-// callback here on purpose — the only feedback this layer owes the user is that
-// the request was accepted (or why it was not).
-
-function formatDownloadQualityLabel() {
-  const q = String(localStorage.getItem('ym_audio_quality') || '320');
-  return q === '1000' ? 'FLAC' : `${q} kbps`;
-}
-
-function downloadStorageKey(fileName) {
-  return `ym_downloaded:${fileName}`;
-}
-
-function downloadVariantKey(trackId, toCache) {
-  return `${String(trackId)}:${toCache ? 'cache' : 'library'}`;
-}
-
-const DOWNLOADED_TRACKS_KEY = 'ym_downloaded_tracks_v1';
-const pendingDownloadMetadata = new Map();
-const activeDownloadIds = new Set();
-
-function getDownloadedTrackRegistry() {
-  try {
-    const value = JSON.parse(localStorage.getItem(DOWNLOADED_TRACKS_KEY) || '[]');
-    return Array.isArray(value) ? value : [];
-  } catch (_) {
-    return [];
-  }
-}
-
-function isTrackDownloaded(trackId, artist, title) {
-  if (trackId && localStorage.getItem(`ym_downloaded_track:${String(trackId)}`) === '1') return true;
-  if (trackId && getDownloadedTrackRegistry().some(item => String(item.id) === String(trackId))) return true;
-  return Boolean(artist && title && localStorage.getItem(
-    downloadStorageKey(buildDownloadFileName(artist, title, 'flac'))
-  ) === '1');
-}
-
-function hasDownloadedVariant(trackId, toCache) {
-  return getDownloadedTrackRegistry().some(item =>
-    String(item.id) === String(trackId) && Boolean(item.toCache) === Boolean(toCache)
-  );
-}
-
-function setDownloadButtonsProgress(percent, active) {
-  ['as-btn-download'].forEach((id) => {
-    const button = document.getElementById(id);
-    if (!button) return;
-    button.classList.toggle('download-active', active);
-    button.style.setProperty('--download-progress', `${Math.max(0, Math.min(100, percent))}%`);
-  });
-}
-
-window.onTrackDownloadProgress = function(fileName, percent, done, error) {
-  if (error) {
-    const metadata = pendingDownloadMetadata.get(fileName);
-    if (metadata) activeDownloadIds.delete(downloadVariantKey(metadata.id, metadata.toCache));
-    pendingDownloadMetadata.delete(fileName);
-    setDownloadButtonsProgress(0, false);
-    showToast(`Ошибка загрузки: ${error}`, 'bi-exclamation-triangle');
-    return;
-  }
-  setDownloadButtonsProgress(percent, !done);
-  if (done) {
-    const metadata = pendingDownloadMetadata.get(fileName);
-    pendingDownloadMetadata.delete(fileName);
-    if (metadata) {
-      activeDownloadIds.delete(downloadVariantKey(metadata.id, metadata.toCache));
-      localStorage.setItem(downloadStorageKey(fileName), '1');
-      localStorage.setItem(`ym_downloaded_track:${metadata.id}`, '1');
-      const records = getDownloadedTrackRegistry().filter(item =>
-        !(String(item.id) === String(metadata.id) && item.fileName === fileName)
-      );
-      records.unshift({ ...metadata, fileName, completedAt: Date.now() });
-      try { localStorage.setItem(DOWNLOADED_TRACKS_KEY, JSON.stringify(records)); } catch (_) {}
-      if (document.getElementById('library-downloads-view')?.style.display !== 'none') {
-        renderDownloadedTracks();
-      }
-    }
-    showToast(`Файл загружен: ${fileName}`, 'bi-check-circle-fill', 'success');
-    if (typeof renderTracks === 'function') renderTracks();
-  }
-};
-
-// Filenames come from track titles, which can carry any character. Strip the
-// ones that are illegal in a path or that the native guard rejects.
-function buildDownloadFileName(artist, title, ext, trackId) {
-  const clean = (s) => String(s || '').replace(/[\\/:*?"<>|\x00-\x1f]/g, ' ').replace(/\s+/g, ' ').trim();
-  const a = clean(artist);
-  const t = clean(title) || 'track';
-  const base = a ? `${a} - ${t}` : t;
-  const idSuffix = trackId ? ` [${clean(trackId).slice(0, 18)}]` : '';
-  return `${base.slice(0, Math.max(1, 120 - idSuffix.length))}${idSuffix}.${ext}`;
-}
-
-// The stream URL encodes the codec in its path (get-flac vs get-mp3), which is
-// the only reliable signal — Liberty DB entries are always MP3.
-function detectAudioFormat(streamUrl) {
-  const url = String(streamUrl || '');
-  if (url.includes('/get-flac/') || url.includes('.flac')) {
-    return { ext: 'flac', mime: 'audio/flac' };
-  }
-  return { ext: 'mp3', mime: 'audio/mpeg' };
-}
-
-// Resolve one track's stream URL and hand it to DownloadManager. Deliberately
-// silent so the batch path can enqueue a whole library without a toast per
-// track; downloadTrackToDevice() wraps this with user-facing feedback.
-async function enqueueTrackDownload(track, artistName, trackId, toCache) {
-  if (!trackId || !state.token) return false;
-  if (!(window.AndroidBridge && typeof window.AndroidBridge.downloadTrack === 'function')) return false;
-  if (hasDownloadedVariant(trackId, toCache)) return true;
-  const activeKey = downloadVariantKey(trackId, toCache);
-  if (activeDownloadIds.has(activeKey)) return true;
-
-  let streamUrl;
-  let downloadInfo;
-  try {
-    // User downloads are lossless FLAC; the private cache deliberately uses
-    // 320 kbps MP3 to avoid consuming excessive storage.
-    const downloadQuality = toCache ? 'nq' : 'lossless';
-    downloadInfo = await YandexClient.getDownloadInfo(trackId, state.token, downloadQuality);
-    // getDownloadInfo follows the PC client and returns `url`; the playback
-    // resolver uses the older `streamUrl` field.
-    streamUrl = downloadInfo && (downloadInfo.url || downloadInfo.streamUrl);
-    let streamHost = 'none';
-    try {
-      streamHost = streamUrl ? new URL(streamUrl).hostname : 'none';
-    } catch (_) {
-      streamHost = 'invalid';
-    }
-    ylog('DOWNLOAD', `file info resolved track=${trackId} quality=${downloadQuality} host=${streamHost}`);
-  } catch (e) {
-    ylogError('DOWNLOAD', `stream resolve failed track=${trackId}: ${e?.message || e}`);
-    return false;
-  }
-
-  if (!streamUrl) {
-    ylogError('DOWNLOAD', `empty stream URL track=${trackId}`);
-    return false;
-  }
-  // The native guard only accepts https; a relative URL would be rejected there.
-  if (!/^https:\/\//i.test(streamUrl)) {
-    ylogError('DOWNLOAD', `unsupported stream scheme track=${trackId}`);
-    return false;
-  }
-
-  const { ext, mime } = downloadInfo.codec && String(downloadInfo.codec).includes('flac')
-    ? { ext: 'flac', mime: 'audio/flac' }
-    : detectAudioFormat(streamUrl);
-  const title = track.title || track.track?.title || 'Трек';
-  const artist = artistName || (typeof track.artists === 'string' ? track.artists : '') || '';
-  const publicFileName = buildDownloadFileName(artist, title, ext, trackId);
-  // Keep cache and Music downloads distinct even if both happen to use the
-  // same codec; the native bridge can then resolve/delete by filename safely.
-  const fileName = toCache
-    ? publicFileName.replace(/(\.[^.]+)$/, ' [cache]$1')
-    : publicFileName;
-  let coverUri = track.coverUri || track.cover || track.track?.coverUri ||
-    track.track?.cover || track.track?.albums?.[0]?.coverUri || '';
-  if (coverUri && coverUri.includes('%%')) coverUri = `https://${coverUri.replace('%%', '400x400')}`;
-  else if (coverUri && !coverUri.startsWith('http')) coverUri = `https://${coverUri}`;
-  pendingDownloadMetadata.set(fileName, {
-    id: String(trackId),
-    title: String(title),
-    artist: String(artist),
-    coverUri,
-    mime,
-    toCache: Boolean(toCache)
-  });
-  activeDownloadIds.add(activeKey);
-
-  try {
-    const ok = Boolean(window.AndroidBridge.downloadTrack(streamUrl, fileName, mime, toCache, downloadInfo.keyBase64));
-    if (!ok) {
-      pendingDownloadMetadata.delete(fileName);
-      activeDownloadIds.delete(activeKey);
-    }
-    ylog('DOWNLOAD', `bridge enqueue track=${trackId} ok=${ok} cache=${Boolean(toCache)} file=${fileName}`);
-    return ok;
-  } catch (e) {
-    pendingDownloadMetadata.delete(fileName);
-    activeDownloadIds.delete(activeKey);
-    ylogError('DOWNLOAD', `bridge exception track=${trackId}: ${e?.message || e}`);
-    return false;
-  }
-}
-
-async function downloadTrackToDevice(track, artistName, trackId, toCache) {
-  if (!trackId) return;
-  if (!state.token) {
-    showToast('Сначала войдите в аккаунт', 'bi-exclamation-circle');
-    return;
-  }
-  if (!(window.AndroidBridge && typeof window.AndroidBridge.downloadTrack === 'function')) {
-    showToast('Скачивание доступно только в приложении', 'bi-exclamation-circle');
-    return;
-  }
-
-  showToast('Получаю ссылку на аудио…', 'bi-cloud-arrow-down');
-  let ok = false;
-  try {
-    ok = await enqueueTrackDownload(track, artistName, trackId, toCache);
-  } catch (e) {
-    ylogError('DOWNLOAD', `download preparation failed track=${trackId}: ${e?.message || e}`);
-  }
-
-  if (ok) {
-    showToast(
-      toCache ? `Скачиваю в кэш: ${track.title || 'Трек'}` : `Скачиваю в «Музыку»: ${track.title || 'Трек'}`,
-      'bi-download',
-      'success'
-    );
-  } else {
-    showToast('Скачивание не началось', 'bi-exclamation-triangle');
-  }
-}
-
-// Download every track in the collection. Stream URLs are resolved a few at a
-// time: firing a few hundred download-info requests at once would trip Yandex
-// rate limiting and fail the whole batch. Enqueueing itself is cheap, so the
-// bottleneck is URL resolution, which is what the pool bounds.
-let libraryDownloadRunning = false;
-
-async function enqueueTrackDownloadWithRetry(track, artistName, trackId, toCache) {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const ok = await enqueueTrackDownload(track, artistName, trackId, toCache);
-    if (ok) return true;
-    if (attempt < 2) {
-      await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
-    }
-  }
-  return false;
-}
-
-async function downloadWholeLibrary(btn) {
-  if (libraryDownloadRunning) {
-    showToast('Скачивание уже идёт…', 'bi-hourglass-split');
-    return;
-  }
-  if (!state.token) {
-    showToast('Сначала войдите в аккаунт', 'bi-exclamation-circle');
-    return;
-  }
-  if (!(window.AndroidBridge && typeof window.AndroidBridge.downloadTrack === 'function')) {
-    showToast('Скачивание доступно только в приложении', 'bi-exclamation-circle');
-    return;
-  }
-
-  const tracks = state.tracks || [];
-  if (tracks.length === 0) {
-    showToast('В коллекции нет треков', 'bi-exclamation-circle');
-    return;
-  }
-
-  libraryDownloadRunning = true;
-  if (btn) {
-    btn.disabled = true;
-    btn.classList.add('downloading');
-    btn.title = 'Скачиваю коллекцию…';
-  }
-  showToast(`Начинаю скачивание ${tracks.length} треков…`, 'bi-cloud-arrow-down');
-
-  // Yandex/CDN frequently resets one of several simultaneous large audio
-  // connections. Serializing the requests is slower but reliable and avoids
-  // losing half of a collection download.
-  const CONCURRENCY = 1;
-  let cursor = 0;
-  let ok = 0;
-  let failed = 0;
-
-  const worker = async () => {
-    while (cursor < tracks.length) {
-      const i = cursor++;
-      const t = tracks[i];
-      if (!t) continue;
-      const raw = t.track || t;
-      const id = String(raw.id || t.id || '');
-      if (!id) { failed++; continue; }
-
-      let artist = t.artists;
-      if (Array.isArray(artist)) artist = artist.map(a => a && (a.name || a)).filter(Boolean).join(', ');
-      else if (raw.artists) artist = raw.artists.map(a => a && a.name).filter(Boolean).join(', ');
-      if (typeof artist !== 'string') artist = '';
-
-      const enqueued = await enqueueTrackDownloadWithRetry(t, artist, id, false);
-      if (enqueued) ok++; else failed++;
-      await new Promise((resolve) => setTimeout(resolve, 700));
-    }
-  };
-
-  try {
-    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, tracks.length) }, worker));
-  } catch (e) {
-    console.error('Library download failed:', e);
-  }
-
-  libraryDownloadRunning = false;
-  if (btn) {
-    btn.disabled = false;
-    btn.classList.remove('downloading');
-    btn.title = 'Скачать все треки';
-  }
-
-  showToast(
-    failed === 0
-      ? `Передано на скачивание: ${ok}`
-      : `Скачано ${ok}, не удалось ${failed}`,
-    failed === 0 ? 'bi-check2-circle' : 'bi-exclamation-triangle',
-    failed === 0 ? 'success' : 'warn'
-  );
-}
 
 // --- Action Sheet (Three Dots) & Playlist Chooser ---
 let activeMenuTrack = null;
@@ -3582,30 +3132,6 @@ function openActionSheet(track) {
     asBtnTrackVibe.onclick = () => {
       closeActionSheet();
       startTrackVibe(track);
-    };
-  }
-
-  // Downloads. Both buttons share one handler; only the destination differs.
-  // The label reflects the quality the user picked in settings, because
-  // getStreamUrl already honours ym_audio_quality — so a lossless user gets a
-  // FLAC file and everyone else an MP3 at their chosen bitrate.
-  const asBtnDownload = document.getElementById('as-btn-download');
-  const asDownloadText = document.getElementById('as-download-text');
-
-  const isNative = window.AndroidBridge && typeof window.AndroidBridge.downloadTrack === 'function';
-  if (asDownloadText) {
-    asDownloadText.textContent = isNative
-      ? `Скачать трек (${formatDownloadQualityLabel()})`
-      : 'Скачать трек (только в приложении)';
-  }
-  const showDownloads = isNative && Boolean(trackId);
-  if (asBtnDownload) asBtnDownload.style.display = showDownloads ? 'flex' : 'none';
-
-  if (showDownloads) {
-    const startDownload = (toCache) => downloadTrackToDevice(track, artistName, trackId, toCache);
-    asBtnDownload.onclick = () => {
-      closeActionSheet();
-      startDownload(false);
     };
   }
 

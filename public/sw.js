@@ -1,4 +1,4 @@
-const CACHE_NAME = "ym-liberty-shell-v12";
+const CACHE_NAME = "ym-liberty-shell-v14";
 const APP_SHELL = [
   "./",
   "./index.html",

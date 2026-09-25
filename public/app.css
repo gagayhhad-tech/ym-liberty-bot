@@ -473,8 +473,9 @@ input:checked + .slider:before {
    two buttons (lyrics + menu) while the left holds one, so the title was pushed
    off centre by half a button width whenever the lyrics button was visible. */
 .full-player-header {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: var(--control-height) minmax(0, 1fr) auto;
+  column-gap: 8px;
   align-items: center;
   padding: 16px 0;
   font-size: 14px;
@@ -484,13 +485,20 @@ input:checked + .slider:before {
 
 .full-player-header > .icon-btn,
 .full-player-header > .full-player-header-actions {
-  flex: 1 1 0;
   min-width: 0;
 }
 
 /* The flank expands but its icon must stay pinned to the outer edge. */
 .full-player-header > .icon-btn {
-  text-align: left;
+  flex: 0 0 var(--control-height);
+  width: var(--control-height);
+  height: var(--control-height);
+  min-width: var(--control-height);
+  min-height: var(--control-height);
+  padding: 0;
+  text-align: center;
+  justify-self: start;
+  opacity: 1;
 }
 
 .full-player-context {
@@ -498,7 +506,7 @@ input:checked + .slider:before {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  flex: 0 1 auto;
+  width: 100%;
   min-width: 0;
   padding: 0 10px;
   text-align: center;
@@ -567,6 +575,15 @@ input:checked + .slider:before {
   gap: 2px;
 }
 
+.full-player-header-actions .icon-btn {
+  flex: 0 0 var(--control-height);
+  width: var(--control-height);
+  height: var(--control-height);
+  min-width: var(--control-height);
+  min-height: var(--control-height);
+  padding: 0;
+}
+
 /* Overlays the cover art in place, so opening lyrics never changes the player
    layout. The cover stays mounted behind it to keep the ambient backdrop.
    Needs its own .hidden rule — see the note on .vibe-sync-warning.hidden.
@@ -595,6 +612,7 @@ input:checked + .slider:before {
   height: 100%;
   box-sizing: border-box;
   overflow-y: auto;
+  scrollbar-width: none;
   overscroll-behavior: contain;
   padding: 42% 22px;
   text-align: center;
@@ -602,6 +620,9 @@ input:checked + .slider:before {
   scroll-padding-block: 45%;
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 17%, #000 83%, transparent 100%);
   mask-image: linear-gradient(to bottom, transparent 0%, #000 17%, #000 83%, transparent 100%);
+}
+.full-lyrics-lines::-webkit-scrollbar {
+  display: none;
 }
 
 .lyric-line {
@@ -639,17 +660,6 @@ input:checked + .slider:before {
 .lyric-line.meta {
   opacity: 0.45;
   transform: none;
-}
-
-.track-download-state {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: auto;
-  margin-right: 8px;
-  color: #8be28b;
-  font-size: 16px;
-  filter: drop-shadow(0 0 5px rgba(139, 226, 139, 0.35));
 }
 
 .as-btn.download-active {
@@ -717,6 +727,27 @@ input:checked + .slider:before {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+.full-title-row > div {
+  flex: 1;
+  min-width: 0;
+}
+.full-title-row .like-btn {
+  flex: 0 0 var(--control-height);
+  width: var(--control-height);
+  height: var(--control-height);
+  min-width: var(--control-height);
+  min-height: var(--control-height);
+  padding: 0;
+  font-size: 22px;
+  opacity: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.full-title-row .like-btn i {
+  display: block;
+  line-height: 1;
 }
 #full-title {
   font-size: 24px;
@@ -1273,27 +1304,6 @@ input[type=range]::-webkit-slider-thumb {
 /* Sits left of the play button and takes the auto margin, so the pair stays
    pinned to the right edge of .playlist-header. Giving both buttons
    margin-left:auto would split the free space and strand this one mid-row. */
-.download-all-btn {
-  background: rgba(255,255,255,0.1);
-  color: #fff;
-  border: none;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  font-size: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-left: auto;
-  flex-shrink: 0;
-}
-.download-all-btn:disabled {
-  opacity: 0.4;
-}
-.download-all-btn.downloading i {
-  animation: spin 1s linear infinite;
-}
-
 .play-all-btn {
   background: var(--accent-color);
   color: #000;
@@ -1305,7 +1315,7 @@ input[type=range]::-webkit-slider-thumb {
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-left: 10px;
+  margin-left: auto;
   flex-shrink: 0;
 }
 
@@ -2526,6 +2536,7 @@ body {
     var(--bg-color);
   color: var(--text-primary);
   letter-spacing: -.01em;
+  overscroll-behavior-y: none;
 }
 
 button, input, select, textarea {
@@ -2899,8 +2910,7 @@ button:disabled {
 
 .btn-primary,
 .btn-secondary,
-.play-all-btn,
-.download-all-btn {
+.play-all-btn {
   min-height: 44px;
   border-radius: 12px;
   transition: transform .18s var(--ease-standard), filter .18s ease, background .18s ease;
@@ -2914,8 +2924,7 @@ button:disabled {
 
 .btn-primary:active,
 .btn-secondary:active,
-.play-all-btn:active,
-.download-all-btn:active {
+.play-all-btn:active {
   transform: scale(.96);
 }
 

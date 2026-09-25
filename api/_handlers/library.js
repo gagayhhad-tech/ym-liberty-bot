@@ -114,6 +114,19 @@ module.exports = async (req, res) => {
           artists: (t.artists || []).map((a) => a.name).join(", "),
           durationMs: t.durationMs || 0,
           coverUri: cover,
+          genre: t.genre || null,
+          genres: t.genres || [],
+          mood: t.mood || null,
+          moods: t.moods || [],
+          moodTags: t.moodTags || [],
+          albums: (t.albums || []).map(album => ({
+            genre: album.genre || null,
+            genres: album.genres || [],
+            mood: album.mood || null,
+            moods: album.moods || [],
+            moodTags: album.moodTags || []
+          })),
+          track: t,
           isLiberty,
           explicit: Boolean(t.contentWarning === "explicit" || t.explicit),
         };

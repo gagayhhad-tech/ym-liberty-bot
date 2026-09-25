@@ -170,12 +170,10 @@ function hmacSha256Base64(message, secret) {
   return bytesToBase64(sha256(concatBytes(outer, innerHash)));
 }
 
-// --- Direct Client-Side Yandex API (All traffic from User's IP) ---
-const isLocal = typeof window !== 'undefined' && (
-  window.location.hostname === 'localhost' ||
-  window.location.hostname === '127.0.0.1' ||
-  (window.location.origin && window.location.origin.includes('localhost:3000'))
-);
+// Browser access to api.music.yandex.net is blocked by its CORS policy.
+// Route hosted web/PWA requests through same-origin Vercel API handlers instead.
+// Android's file:// WebView continues to use the direct native-client path.
+const useApiProxy = typeof window !== 'undefined' && window.location.protocol !== 'file:';
 
 function yandexDiag(message, error = false) {
   try {
@@ -226,7 +224,7 @@ const YandexClient = {
   },
 
   async getAccountStatus(token) {
-    if (isLocal) {
+    if (useApiProxy) {
       const libData = await this.getLibrary(token);
       return libData.user || {};
     }
@@ -255,9 +253,11 @@ const YandexClient = {
   async getStreamUrl(trackId, token, qualityOverride = null) {
     const idStr = String(trackId);
     const requestedQuality = qualityOverride ? parseInt(qualityOverride, 10) : null;
-    yandexDiag(`stream start track=${idStr} local=${isLocal}`);
-    if (isLocal) {
-      const res = await fetch(`/api/stream?trackId=${encodeURIComponent(idStr)}&token=${encodeURIComponent(token || '')}`);
+    yandexDiag(`stream start track=${idStr} proxied=${useApiProxy}`);
+    if (useApiProxy) {
+      const res = await fetch(`/api/stream?trackId=${encodeURIComponent(idStr)}`, {
+        headers: this.getHeaders(token)
+      });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'Stream error');
       if (data.streamUrl && !data.streamUrl.startsWith('/api/proxy-audio')) {
@@ -406,8 +406,8 @@ const YandexClient = {
   },
 
   async getLibrary(token) {
-    if (isLocal) {
-      const res = await fetch(`/api/library?token=${encodeURIComponent(token || '')}`);
+    if (useApiProxy) {
+      const res = await fetch('/api/library', { headers: this.getHeaders(token) });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || 'Library error');
       return data;
@@ -469,8 +469,9 @@ const YandexClient = {
   async getVibe(token, queueTrackId, station = 'user:onyourwave') {
     const queueParam = queueTrackId ? `&queue=${encodeURIComponent(queueTrackId)}` : '';
     const cleanStation = station || 'user:onyourwave';
-    if (isLocal) {
-      const res = await fetch(`/api/vibe?token=${encodeURIComponent(token || '')}&station=${encodeURIComponent(cleanStation)}${queueParam}`);
+    if (useApiProxy) {
+      const stationParam = `station=${encodeURIComponent(cleanStation)}${queueParam}`;
+      const res = await fetch(`/api/vibe?${stationParam}`, { headers: this.getHeaders(token) });
       return res.json();
     }
 
@@ -509,11 +510,11 @@ const YandexClient = {
 
   async sendFeedback(type, trackId, batchId, duration, token, station = 'user:onyourwave', trackLengthSeconds) {
     const cleanStation = station || 'user:onyourwave';
-    if (isLocal) {
+    if (useApiProxy) {
       return fetch('/api/feedback', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, batchId, trackId, type, duration, station: cleanStation, trackLengthSeconds })
+        headers: { 'Content-Type': 'application/json', ...this.getHeaders(token) },
+        body: JSON.stringify({ batchId, trackId, type, duration, station: cleanStation, trackLengthSeconds })
       });
     }
 
@@ -544,12 +545,12 @@ const YandexClient = {
 
   async setVibeSettings(moodEnergy = 'all', diversity = 'default', token) {
     if (!token) return { success: false };
-    if (isLocal) {
+    if (useApiProxy) {
       try {
         const res = await fetch('/api/vibe?action=settings', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token, moodEnergy, diversity })
+          headers: { 'Content-Type': 'application/json', ...this.getHeaders(token) },
+          body: JSON.stringify({ moodEnergy, diversity })
         });
         return res.json();
       } catch (e) {
@@ -579,8 +580,10 @@ const YandexClient = {
   },
 
   async search(query, token) {
-    if (isLocal) {
-      const res = await fetch(`/api/search?query=${encodeURIComponent(query)}&token=${encodeURIComponent(token || '')}`);
+    if (useApiProxy) {
+      const res = await fetch(`/api/search?query=${encodeURIComponent(query)}`, {
+        headers: this.getHeaders(token)
+      });
       return res.json();
     }
 
@@ -616,8 +619,10 @@ const YandexClient = {
   },
 
   async getArtist(artistId, token) {
-    if (isLocal) {
-      const res = await fetch(`/api/artist?id=${encodeURIComponent(artistId)}&token=${encodeURIComponent(token || '')}`);
+    if (useApiProxy) {
+      const res = await fetch(`/api/artist?id=${encodeURIComponent(artistId)}`, {
+        headers: this.getHeaders(token)
+      });
       return res.json();
     }
 
@@ -678,8 +683,10 @@ const YandexClient = {
   },
 
   async getAlbum(albumId, token) {
-    if (isLocal) {
-      const res = await fetch(`/api/album?id=${encodeURIComponent(albumId)}&token=${encodeURIComponent(token || '')}`);
+    if (useApiProxy) {
+      const res = await fetch(`/api/album?id=${encodeURIComponent(albumId)}`, {
+        headers: this.getHeaders(token)
+      });
       return res.json();
     }
 
@@ -719,8 +726,8 @@ const YandexClient = {
   },
 
   async getPlaylists(token) {
-    if (isLocal) {
-      const res = await fetch(`/api/playlists?token=${encodeURIComponent(token || '')}`);
+    if (useApiProxy) {
+      const res = await fetch('/api/playlists', { headers: this.getHeaders(token) });
       const data = await res.json();
       if (data.playlists) {
         data.playlists = data.playlists.filter(p => !p.title || !p.title.startsWith('_ym_stats:'));
@@ -745,9 +752,11 @@ const YandexClient = {
   },
 
   async getUserPlaylistsRaw(token) {
-    if (isLocal) {
+    if (useApiProxy) {
       try {
-        const res = await fetch(`/api/playlists?raw=1&token=${encodeURIComponent(token || '')}`);
+        const res = await fetch('/api/playlists?raw=1', {
+          headers: this.getHeaders(token)
+        });
         const data = await res.json();
         return data.playlists || [];
       } catch(e) {
@@ -763,12 +772,12 @@ const YandexClient = {
   },
 
   async createPrivatePlaylist(title, token) {
-    if (isLocal) {
+    if (useApiProxy) {
       try {
         const res = await fetch('/api/playlists', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'create', title, token })
+          headers: { 'Content-Type': 'application/json', ...this.getHeaders(token) },
+          body: JSON.stringify({ action: 'create', title })
         });
         return res.json();
       } catch(e) {
@@ -792,12 +801,12 @@ const YandexClient = {
   },
 
   async renamePlaylist(kind, newTitle, token) {
-    if (isLocal) {
+    if (useApiProxy) {
       try {
         const res = await fetch('/api/playlists', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'rename', kind, title: newTitle, token })
+          headers: { 'Content-Type': 'application/json', ...this.getHeaders(token) },
+          body: JSON.stringify({ action: 'rename', kind, title: newTitle })
         });
         return res.json();
       } catch(e) {
@@ -820,8 +829,10 @@ const YandexClient = {
   },
 
   async getPlaylist(kind, token) {
-    if (isLocal) {
-      const res = await fetch(`/api/playlist?kind=${encodeURIComponent(kind)}&token=${encodeURIComponent(token || '')}`);
+    if (useApiProxy) {
+      const res = await fetch(`/api/playlist?kind=${encodeURIComponent(kind)}`, {
+        headers: this.getHeaders(token)
+      });
       return res.json();
     }
 
@@ -902,11 +913,11 @@ const YandexClient = {
   },
 
   async addTrackToPlaylist(kind, trackId, albumId, token) {
-    if (isLocal) {
+    if (useApiProxy) {
       const res = await fetch('/api/playlist-add', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind, trackId, albumId, token })
+        headers: { 'Content-Type': 'application/json', ...this.getHeaders(token) },
+        body: JSON.stringify({ kind, trackId, albumId })
       });
       return res.json();
     }
@@ -932,11 +943,11 @@ const YandexClient = {
   },
 
   async like(trackId, action, token) {
-    if (isLocal) {
+    if (useApiProxy) {
       const res = await fetch('/api/like', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ trackId, action, token })
+        headers: { 'Content-Type': 'application/json', ...this.getHeaders(token) },
+        body: JSON.stringify({ trackId, action })
       });
       return res.json();
     }
@@ -955,8 +966,8 @@ const YandexClient = {
   },
 
   async getFeed(token) {
-    if (isLocal) {
-      const res = await fetch(`/api/feed?token=${encodeURIComponent(token || '')}`);
+    if (useApiProxy) {
+      const res = await fetch('/api/feed', { headers: this.getHeaders(token) });
       return res.json();
     }
 
@@ -1035,7 +1046,7 @@ const YandexClient = {
 
 
   async authDeviceCode() {
-    if (isLocal) {
+    if (useApiProxy) {
       const res = await fetch('/api/auth?action=code');
       return res.json();
     }
@@ -1055,8 +1066,12 @@ const YandexClient = {
   },
 
   async authDevicePoll(device_code) {
-    if (isLocal) {
-      const res = await fetch(`/api/auth?action=poll&device_code=${encodeURIComponent(device_code)}`);
+    if (useApiProxy) {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'poll', device_code })
+      });
       return res.json();
     }
 
@@ -1141,10 +1156,9 @@ const YandexClient = {
 
     let info;
     try {
-      const res = await fetch(
-        `https://api.music.yandex.net/tracks/${encodeURIComponent(idStr)}/lyrics?format=${format}&durationMs=${encodeURIComponent(duration)}&timeStamp=${timeStamp}&sign=${encodeURIComponent(sign)}`,
-        { headers: this.getHeaders(token) }
-      );
+      const lyricsUrl = `/api/lyrics?trackId=${encodeURIComponent(idStr)}&format=${format}&durationMs=${encodeURIComponent(duration)}&timeStamp=${timeStamp}&sign=${encodeURIComponent(sign)}`;
+      const directUrl = `https://api.music.yandex.net/tracks/${encodeURIComponent(idStr)}/lyrics?format=${format}&durationMs=${encodeURIComponent(duration)}&timeStamp=${timeStamp}&sign=${encodeURIComponent(sign)}`;
+      const res = await fetch(useApiProxy ? lyricsUrl : directUrl, { headers: this.getHeaders(token) });
       yandexDiag(`lyrics response track=${idStr} format=${format} http=${res.status}`);
       if (!res.ok) {
         console.warn('Lyrics request failed:', res.status, format);

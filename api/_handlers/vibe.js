@@ -12,7 +12,8 @@ module.exports = async function (req, res) {
 
   // Handle vibe settings update (mood / diversity)
   if (req.method === "POST" || req.query.action === "settings") {
-    const token = req.body?.token || req.query?.token;
+    const token = req.body?.token || req.query?.token ||
+      req.headers?.authorization?.replace(/^OAuth\s+/i, '');
     if (!token) {
       return res.status(400).json({ error: "No token provided" });
     }
@@ -38,7 +39,8 @@ module.exports = async function (req, res) {
     }
   }
 
-  const token = req.query.token;
+  const token = req.query.token ||
+    req.headers?.authorization?.replace(/^OAuth\s+/i, '');
 
   if (!token) {
     return res.status(400).json({ error: "No token provided" });

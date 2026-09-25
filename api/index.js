@@ -20,6 +20,7 @@ const handlers = {
   test: require('./_handlers/test'),
   libertyList: require('./_handlers/libertyList'),
   feed: require('./_handlers/feed'),
+  lyrics: require('./_handlers/lyrics'),
   stats: require('./_handlers/stats'),
 };
 

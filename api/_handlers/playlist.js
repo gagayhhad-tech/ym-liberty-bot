@@ -1,7 +1,8 @@
 const axios = require('axios');
 
 module.exports = async function (req, res) {
-  const { token, kind } = req.query;
+  const { kind } = req.query;
+  const token = req.query.token || req.headers?.authorization?.replace(/^OAuth\s+/i, '');
 
   if (!token || kind === undefined) {
     return res.status(400).json({ error: "Missing token or kind" });

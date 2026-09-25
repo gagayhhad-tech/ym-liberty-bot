@@ -2,7 +2,8 @@ const axios = require('axios');
 const getLibertyList = require('./libertyList');
 
 module.exports = async function (req, res) {
-  const { token, query } = req.query;
+  const query = req.query.query;
+  const token = req.query.token || req.headers?.authorization?.replace(/^OAuth\s+/i, '');
 
   if (!token || !query) {
     return res.status(400).json({ error: "No token or query provided" });

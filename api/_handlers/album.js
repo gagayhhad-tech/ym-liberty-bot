@@ -1,7 +1,8 @@
 const axios = require('axios');
 
 module.exports = async function (req, res) {
-  const { token, id } = req.query;
+  const { id } = req.query;
+  const token = req.query.token || req.headers?.authorization?.replace(/^OAuth\s+/i, '');
 
   if (!id) {
     return res.status(400).json({ error: "Missing album id" });

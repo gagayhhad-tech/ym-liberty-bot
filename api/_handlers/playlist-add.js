@@ -1,7 +1,9 @@
 const axios = require('axios');
 
 module.exports = async function (req, res) {
-  const { token, kind, trackId, albumId } = req.body || req.query;
+  const payload = req.body || req.query;
+  const { kind, trackId, albumId } = payload;
+  const token = payload.token || req.headers?.authorization?.replace(/^OAuth\s+/i, '');
 
   if (!token || !kind || !trackId) {
     return res.status(400).json({ error: "Missing token, kind, or trackId" });

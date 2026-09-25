@@ -1,7 +1,8 @@
 const axios = require('axios');
 
 module.exports = async function (req, res) {
-  const { token, batchId, trackId, type, duration, station } = req.body;
+  const { batchId, trackId, type, duration, station } = req.body;
+  const token = req.body?.token || req.headers?.authorization?.replace(/^OAuth\s+/i, '');
 
   if (!token || !batchId || !trackId) {
     return res.status(400).json({ error: "Missing required parameters" });

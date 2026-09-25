@@ -32,7 +32,7 @@ module.exports = async (req, res) => {
     }
 
     if (action === "poll") {
-      const device_code = req.query?.device_code || req.body?.device_code;
+      const device_code = req.body?.device_code || req.query?.device_code;
       if (!device_code) {
         return res.status(400).json({ error: "device_code is required" });
       }

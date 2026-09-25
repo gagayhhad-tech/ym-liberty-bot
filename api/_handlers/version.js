@@ -8,11 +8,11 @@ const CANDIDATES = [
 ];
 
 const FALLBACK = {
-  versionCode: 49,
-  versionName: "1.1.32",
+  versionCode: 50,
+  versionName: "1.1.33",
   apkUrl: "https://ym-liberty-bot.vercel.app/YMLiberty.apk",
   changelog: [
-    "Аура Моей Волны теперь использует только цвета текущей обложки без отрисовки самой обложки.",
+    "Улучшена визуальная система: исправлены кнопки настроения, положение уведомлений и видимость ауры; нажатие на заголовок Моей Волны запускает воспроизведение.",
   ],
   releaseDate: "2026-09-25",
   minSupportedVersion: 1,
